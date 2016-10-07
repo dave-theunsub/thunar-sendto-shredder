@@ -1,0 +1,13 @@
+# thunar-sendto-shredder 0.01
+[Desktop Entry]
+Name=File shredder
+GenericName=File shredder
+Comment=Securely delete files
+Comment[en]=Scan for threats...
+TryExec=clamtk
+Exec=thunar-sendto-shredder %F
+Icon=thunar-sendto-shredder
+Type=Application
+Terminal=false
+Keywords=delete;privacy;security
+OnlyShowIn=XFCE;
