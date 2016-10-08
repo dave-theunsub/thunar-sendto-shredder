@@ -21,8 +21,24 @@ use Gtk3 '-init';
 use Glib 'TRUE', 'FALSE';
 use File::Find;
 
+# Stuff to be overwritten
+my @objects = ();
+
+# Our Gtk3::ProgressBar; global for now
+my $pb = '';
+
+# Don't need this
+my $pb_step = '';
+
+# Either for figuring out the step or couting how
+# many were shredded overall
+my $pb_file_count = 0;
+
+# Status label; shows user what is happening
+my $label = '';
+
 sub show_window {
-    my @objects = @_;
+    @objects = @_;
     warn "in gui - got >$_<\n" for ( @_ );
 
     my $window = Gtk3::Window->new( 'toplevel' );
@@ -46,12 +62,12 @@ sub show_window {
     $btn->signal_connect( clicked => sub { Gtk3->main_quit } );
     $header->pack_start( $btn );
 
-    my $label = Gtk3::Label->new( '' );
+    $label = Gtk3::Label->new( '' );
     $box->pack_start( $label, FALSE, FALSE, 0 );
 
-    my $pb            = Gtk3::ProgressBar->new;
-    my $pb_step       = 0;
-    my $pb_file_count = 0;
+    $pb            = Gtk3::ProgressBar->new;
+    $pb_step       = 0;
+    $pb_file_count = 0;
     $box->pack_start( $pb, FALSE, FALSE, 0 );
     $window->{ pb } = $pb;
 
@@ -154,43 +170,6 @@ sub get_shred_path {
 
 sub prompt {
 
-}
-
-sub about {
-    my $dialog = Gtk3::AboutDialog->new;
-    my $license
-        = 'thunar-sendto-shredder is free software; you can redistribute'
-        . ' it and/or modify it under the terms of either:'
-        . ' a) the GNU General Public License as published by the'
-        . ' Free Software Foundation; either version 1, or'
-        . ' (at your option) any later version, or'
-        . ' b) the "Artistic License".';
-    $dialog->set_wrap_license( TRUE );
-    $dialog->set_position( 'mouse' );
-
-    my $icon   = "$images_dir/thunar-sendto-shredder.png";
-    my $pixbuf = Gtk3::Gdk::Pixbuf->new_from_file( $icon );
-
-    $dialog->set_logo( $pixbuf );
-    $dialog->set_version( $VERSION );
-    $dialog->set_license( $license );
-    $dialog->set_website_label( _( 'Homepage' ) );
-    $dialog->set_website( 'https://launchpad.net/thunar-sendto-shredder/' );
-    $dialog->set_logo( $pixbuf );
-    $dialog->set_translator_credits(
-        'Please see the website for full listing' );
-    $dialog->set_copyright( "\x{a9} Dave M 2016 -" );
-    $dialog->set_program_name( 'thunar-sendto-shredder' );
-    $dialog->set_authors( [ 'Dave M', '<dave.nerd@gmail.com>' ] );
-    $dialog->set_comments(
-              'thunar-sendto-shredder provides a simple context menu'
-            . ' for securely shredding files with a graphical interface' );
-
-    $dialog->run;
-    $dialog->destroy;
-    $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
-
-    return TRUE;
 }
 
 1;

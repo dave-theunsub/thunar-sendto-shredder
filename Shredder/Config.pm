@@ -19,10 +19,14 @@ use Glib 'TRUE', 'FALSE';
 my $name        = 'thunar-sendto-shredder';
 my $config_path = "$ENV{HOME}/.config/$name";
 
+sub get_version {
+    return '0.01';
+}
+
 sub create {
     if ( !dir_exists() ) {
         warn "Creating config directory...\n";
-        make_path( $config_path, { verbose => 1, } );
+        mkpath( $config_path, { verbose => 1, } );
     }
 
     if ( !config_exists() ) {
@@ -32,9 +36,9 @@ sub create {
             # Recursively remove contents
             print $f "Recursive=1\n";
 
-            # Overwrite method
+            # Overwrite method: simple is default
             # simple, openbsd, dod, doe, gutmann, rcmp
-            print $f "Write=--dod\n";
+            print $f "Write=--simple\n";
 
             # Prompt with "Are you sure?"; by default TRUE
             print $f "Prompt=1\n";
@@ -45,17 +49,28 @@ sub create {
 }
 
 sub get_conf_value {
-    my ( $pkg, $value ) = @_;
-    if ( open( my $f, '<:encoding(UTF-8)', "$config_path/tss.conf" ) ) {
-        while ( <$f> ) {
-            chomp;
-            if ( /^$value=(\d)/ ) {
-                return $1;
-            }
+    my $wanted = shift;
+
+    open( my $f, '<:encoding(UTF-8)', "$config_path/tss.conf" )
+        or do {
+        warn "couldn't open tss.conf: $!\n";
+        die;
+        };
+
+    warn "opened!\n";
+    while ( <$f> ) {
+        warn "reading stuff\n";
+        chomp;
+        if ( /^$wanted=(.*?)$/ ) {
+            warn "1 = >$1<\n";
+            return $1;
         }
-        close( $f );
-        return FALSE;
     }
+    close( $f );
+}
+
+sub set_value {
+        my ( $object, $value ) = @_;
 }
 
 sub dir_exists {
@@ -69,7 +84,7 @@ sub dir_exists {
 }
 
 sub config_exists {
-    if ( -d "$ENV{ HOME }/.config/$name/tss.config" ) {
+    if ( -f "$ENV{ HOME }/.config/$name/tss.config" ) {
         warn "config file exists!\n";
         return TRUE;
     } else {
