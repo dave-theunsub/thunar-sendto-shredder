@@ -70,7 +70,33 @@ sub get_conf_value {
 }
 
 sub set_value {
-        my ( $object, $value ) = @_;
+    my ( $key, $value ) = @_;
+
+    # For temporary storage of values
+    my %configs;
+
+    open( my $f, '<:encoding(UTF-8)', "$config_path/tss.conf" );
+    while ( <$f> ) {
+        my ( $k, $v ) = split /=/, $_;
+        chomp( $v );
+        if ( $k eq $key ) {
+            $configs{ $k } = $value;
+            next;
+        }
+        $configs{ $k } = $v;
+    }
+    close( $f );
+
+    open( my $f, '>:encoding(UTF-8)', "$config_path/tss.conf" )
+        or do {
+        warn "unable to save new settings: $!\n";
+        return FALSE;
+        };
+    while ( my ( $k, $v ) = each %configs ) {
+        print $f "$k=$v\n";
+    }
+    close( $f );
+    return TRUE;
 }
 
 sub dir_exists {

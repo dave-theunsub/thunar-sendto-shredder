@@ -18,12 +18,11 @@ use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
-my ( $prompt_clippy,    $prompt_pop );
-my ( $recursive_clippy, $recursive_pop );
-my ( $write_clippy,     $write_pop );
+my $window;
+my $popover;
 
 sub show_window {
-    my $window = Gtk3::Window->new( 'toplevel' );
+    $window = Gtk3::Window->new( 'toplevel' );
     $window->signal_connect( destroy => sub { Gtk3->main_quit } );
     $window->set_default_size( 300, 300 );
     $window->set_border_width( 10 );
@@ -54,28 +53,23 @@ sub show_window {
     $grid->set_column_homogeneous( TRUE );
     $box->pack_start( $grid, FALSE, FALSE, 10 );
 
+    # For popover
+    my $label = Gtk3::Label->new( 'Saved' );
+    $label->show;
+
     my $bold_label = Gtk3::Label->new( '<b>Settings</b>' );
     $bold_label->set_use_markup( TRUE );
     my $explain_label = Gtk3::Label->new( 'Prompt me before deleting files' );
     $explain_label->set_alignment( 0.0, 0.5 );
-    my $switch    = Gtk3::Switch->new;
-    my $separator = Gtk3::Separator->new( 'horizontal' );
+    my $prompt_switch = Gtk3::Switch->new;
     $grid->attach( $bold_label,    0, 0, 1, 1 );
     $grid->attach( $explain_label, 0, 2, 1, 1 );
-    $grid->attach( $switch,        1, 2, 1, 1 );
-    $grid->attach( $separator,     0, 3, 2, 1 );
-    $switch->set_active(
+    $grid->attach( $prompt_switch, 1, 2, 1, 1 );
+    $prompt_switch->set_active(
         Shredder::Config::get_conf_value( 'Prompt' )
         ? TRUE
         : FALSE
     );
-    $switch->signal_connect( 'state-set' => \&switch_toggle, 'Prompt' );
-    $prompt_clippy = Gtk3::Clipboard::get(
-        Gtk3::Gdk::Atom::intern( 'CLIPBOARD', FALSE ) );
-    $prompt_clippy->wait_for_text;
-    $prompt_pop = Gtk3::Popover->new;
-    $prompt_pop->set_position( 'right' );
-    $prompt_pop->set_relative_to( $switch );
 
     $grid = Gtk3::Grid->new;
     $grid->set_row_spacing( 5 );
@@ -86,18 +80,10 @@ sub show_window {
     $explain_label = Gtk3::Label->new( 'Allow recursive shredding' );
     $explain_label->set_tooltip_text( 'Descend into additional directories' );
     $explain_label->set_alignment( 0.0, 0.5 );
-    $switch    = Gtk3::Switch->new;
-    $separator = Gtk3::Separator->new( 'horizontal' );
-    $grid->attach( $explain_label, 0, 5, 1, 1 );
-    $grid->attach( $switch,        1, 5, 1, 1 );
-    $switch->signal_connect( 'state-set' => \&switch_toggle, 'Recursive' );
-    $recursive_clippy = Gtk3::Clipboard::get(
-        Gtk3::Gdk::Atom::intern( 'CLIPBOARD', FALSE ) );
-    $recursive_clippy->wait_for_text;
-    $recursive_pop = Gtk3::Popover->new;
-    $recursive_pop->set_position( 'right' );
-    $recursive_pop->set_relative_to( $switch );
-    $switch->set_active(
+    my $recursive_switch = Gtk3::Switch->new;
+    $grid->attach( $explain_label,    0, 5, 1, 1 );
+    $grid->attach( $recursive_switch, 1, 5, 1, 1 );
+    $recursive_switch->set_active(
         Shredder::Config::get_conf_value( 'Recursive' )
         ? TRUE
         : FALSE
@@ -110,72 +96,102 @@ sub show_window {
     $box->pack_start( $grid, FALSE, FALSE, 10 );
 
     $explain_label = Gtk3::Label->new( 'Overwrite preference' );
-    $switch        = Gtk3::ComboBoxText->new;
-    $separator     = Gtk3::Separator->new( 'horizontal' );
+    my $write_switch = Gtk3::ComboBoxText->new;
     $explain_label->set_alignment( 0.0, 0.5 );
     $grid->attach( $explain_label, 0, 6, 1, 1 );
-    $grid->attach( $switch,        1, 6, 1, 1 );
-    $grid->attach( $separator,     0, 7, 2, 1 );
+    $grid->attach( $write_switch,  1, 6, 1, 1 );
 
     my $pref = Shredder::Config::get_conf_value( 'Write' );
     warn "pref = >$pref<\n";
     my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
     for my $type ( @writes ) {
-        $switch->append_text( $type );
+        $write_switch->append_text( $type );
     }
 
     my %swap;
-    $swap{ '--simple' }  = 0;
-    $swap{ '--openbsd' } = 1;
-    $swap{ '--dod' }     = 2;
-    $swap{ '--doe' }     = 3;
-    $swap{ '--gutmann' } = 4;
-    $swap{ '--rcmp' }    = 5;
-    $switch->set_active( $swap{ $pref } );
-    $switch->signal_connect( changed => \&toggle_type );
+
+    $swap{ 'Simple' }  = 0;
+    $swap{ 'OpenBSD' } = 1;
+    $swap{ 'DoD' }     = 2;
+    $swap{ 'DoE' }     = 3;
+    $swap{ 'Gutmann' } = 4;
+    $swap{ 'RCMP' }    = 5;
+
+    for my $key ( keys %swap ) {
+        if ( $key eq $pref ) {
+            $write_switch->set_active( $swap{ $pref } );
+        }
+    }
+
+    my $blabel = Gtk3::Label->new( '' );
+    $box->pack_start( $blabel, FALSE, FALSE, 10 );
+    $popover = Gtk3::Popover->new;
+    $popover->add( $label );
+    $popover->set_position( 'right' );
+    $popover->set_relative_to( $blabel );
+
+    my $bbox = Gtk3::ButtonBox->new( 'horizontal' );
+    $bbox->set_layout( 'spread' );
+    $box->pack_start( $bbox, FALSE, FALSE, 5 );
+
+    my $bbtn = Gtk3::Button->new_from_icon_name( 'gtk-apply', 3 );
+    $bbtn->set_tooltip_text( 'Apply changes' );
+    $bbtn->signal_connect(
+        clicked => sub {
+            save_changes(
+                $prompt_switch->get_active,
+                $recursive_switch->get_active,
+                $writes[ $write_switch->get_active ],
+            );
+        }
+    );
+    $bbox->add( $bbtn );
+    $bbtn = Gtk3::Button->new_from_icon_name( 'gtk-close', 3 );
+    $bbtn->set_tooltip_text( 'Close window' );
+    $bbtn->signal_connect( clicked => sub { $window->destroy } );
+    $bbox->add( $bbtn );
 
     $window->show_all;
     Gtk3->main;
 }
 
-sub switch_toggle {
-    my ( $switch_object, $status, $type ) = @_;
-    Shredder::Config::set_value( $type, $status );
+sub save_changes {
+    my ( $prompt, $recursive, $write ) = @_;
+    warn "p = >$prompt<, r = >$recursive<, write =>$write<\n";
 
-    my $label = Gtk3::Label->new( 'Saved' );
-    $label->show;
-    if ( $type eq 'Prompt' ) {
-        $prompt_clippy->set_text( $label, length( $label ) );
-        $prompt_pop->show;
-        Gtk3::main_iteration while ( Gtk3::events_pending );
-        pause_for_effect();
-        $prompt_pop->hide;
-    } elsif ( $type eq 'Recursive' ) {
-        $recursive_clippy->set_text( $label, length( $label ) );
-        $recursive_pop->show;
-        Gtk3::main_iteration while ( Gtk3::events_pending );
-        pause_for_effect();
-        $recursive_pop->hide;
-    }
+    Shredder::Config::set_value( 'Prompt',    $prompt );
+    Shredder::Config::set_value( 'Recursive', $recursive );
+    Shredder::Config::set_value( 'Write',     $write );
+
+    popover();
 }
 
-sub pause_for_effect {
+sub popover {
+    $popover->show_all;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
     my $loop = Glib::MainLoop->new;
     Glib::Timeout->add(
-        1000,
+        2000,
         sub {
             $loop->quit;
             FALSE;
         }
     );
-    Gtk3::main_iteration while ( Gtk3::events_pending );
     $loop->run;
+    $popover->hide;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+}
+
+sub switch_toggle {
+    my ( $switch_object, $status, $type ) = @_;
+
+    popover();
 }
 
 sub toggle_type {
-    my $cb          = $_;
-    my $active_text = $cb->get_active_text;
-    warn "got at = >$active_text<\n";
+    my ( $cbtext, $value ) = @_;
+
+    popover();
 }
 
 sub info {
