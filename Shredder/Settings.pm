@@ -24,7 +24,7 @@ my $popover;
 sub show_window {
     $window = Gtk3::Window->new( 'toplevel' );
     $window->signal_connect( destroy => sub { Gtk3->main_quit } );
-    $window->set_default_size( 300, 300 );
+    # $window->set_default_size( 300, 300 );
     $window->set_border_width( 10 );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
@@ -37,14 +37,18 @@ sub show_window {
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
+    # Header bar buttons
     my $btn = Gtk3::Button->new_from_icon_name( 'gtk-dialog-question', 3 );
+    $btn->set_tooltip_text( 'Overwrite information' );
     $btn->signal_connect( clicked => \&info );
     $header->add( $btn );
+    $btn = Gtk3::Button->new_from_icon_name( 'gtk-dialog-warning', 3 );
+    $btn->set_tooltip_text( 'Important information about this program' );
+    $btn->signal_connect( clicked => \&warning );
+    $header->pack_start( $btn );
     $btn = Gtk3::Button->new_from_icon_name( 'gtk-about', 3 );
+    $btn->set_tooltip_text( 'About this program' );
     $btn->signal_connect( clicked => \&about );
-    $header->add( $btn );
-    $btn = Gtk3::Button->new_from_icon_name( 'gtk-quit', 3 );
-    $btn->signal_connect( clicked => sub { Gtk3->main_quit } );
     $header->add( $btn );
 
     my $grid = Gtk3::Grid->new;
@@ -123,20 +127,18 @@ sub show_window {
         }
     }
 
-    my $blabel = Gtk3::Label->new( '' );
-    $box->pack_start( $blabel, FALSE, FALSE, 10 );
     $popover = Gtk3::Popover->new;
     $popover->add( $label );
-    $popover->set_position( 'right' );
-    $popover->set_relative_to( $blabel );
+    # $popover->set_position( 'right' );
 
     my $bbox = Gtk3::ButtonBox->new( 'horizontal' );
-    $bbox->set_layout( 'spread' );
+    $bbox->set_layout( 'end' );
     $box->pack_start( $bbox, FALSE, FALSE, 5 );
 
-    my $bbtn = Gtk3::Button->new_from_icon_name( 'gtk-apply', 3 );
-    $bbtn->set_tooltip_text( 'Apply changes' );
-    $bbtn->signal_connect(
+    my $apply_button = Gtk3::Button->new_from_icon_name( 'gtk-apply', 3 );
+    $popover->set_relative_to( $apply_button );
+    $apply_button->set_tooltip_text( 'Apply changes' );
+    $apply_button->signal_connect(
         clicked => sub {
             save_changes(
                 $prompt_switch->get_active,
@@ -145,11 +147,7 @@ sub show_window {
             );
         }
     );
-    $bbox->add( $bbtn );
-    $bbtn = Gtk3::Button->new_from_icon_name( 'gtk-close', 3 );
-    $bbtn->set_tooltip_text( 'Close window' );
-    $bbtn->signal_connect( clicked => sub { $window->destroy } );
-    $bbox->add( $bbtn );
+    $bbox->add( $apply_button );
 
     $window->show_all;
     Gtk3->main;
@@ -182,21 +180,9 @@ sub popover {
     Gtk3::main_iteration while ( Gtk3::events_pending );
 }
 
-sub switch_toggle {
-    my ( $switch_object, $status, $type ) = @_;
-
-    popover();
-}
-
-sub toggle_type {
-    my ( $cbtext, $value ) = @_;
-
-    popover();
-}
-
 sub info {
     my $dialog = Gtk3::Dialog->new(
-        'Useful information',
+        'Overwrite information',
         undef, [ qw| destroy-with-parent no-separator | ],
     );
 

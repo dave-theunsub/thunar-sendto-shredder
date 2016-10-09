@@ -55,10 +55,12 @@ sub show_window {
     $header->set_decoration_layout( 'menu:minimize,close' );
 
     my $btn = Gtk3::Button->new_from_icon_name( 'gtk-about', 3 );
+    $btn->set_tooltip_text( 'About this program' );
     $btn->signal_connect( clicked => \&about );
     $header->pack_start( $btn );
 
     $btn = Gtk3::Button->new_from_icon_name( 'gtk-quit', 3 );
+    $btn->set_tooltip_text( 'Quit this program' );
     $btn->signal_connect( clicked => sub { Gtk3->main_quit } );
     $header->pack_start( $btn );
 
@@ -169,6 +171,10 @@ sub get_shred_path {
 }
 
 sub prompt {
+
+}
+
+sub warning {
 
 }
 
