@@ -1,6 +1,6 @@
 COPYRIGHT AND LICENCE
 
-thunar-sendto-shredder, copyright (C) 2016, Dave M 
+thunar-sendto-shredder, copyright (C) 2016- Dave M 
 
 https://github.com/dave-theunsub/thunar-sendto-shredder
 https://gitlab.com/dave_m/thunar-sendto-shredder
@@ -17,3 +17,7 @@ a) the GNU General Public License as published by the Free Software Foundation;
 either version 1, or (at your option) any later version, or
 
 b) the "Artistic License". 
+
+One or more Tango icons were used as well.  These are public domain.
+
+Secure file deletion (srm) is used.  See http://srm.sourceforge.net/ for more.
