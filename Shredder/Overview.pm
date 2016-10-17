@@ -21,9 +21,6 @@ use Locale::gettext;
 # GtkAssistant
 my $flow;
 
-# GtkHeaderBar
-my $header;
-
 sub show_window {
     $flow = Gtk3::Assistant->new;
     $flow->signal_connect( destroy => sub { $flow->destroy } );
@@ -34,7 +31,7 @@ sub show_window {
     $flow->signal_connect( cancel  => \&on_flow_close_cancel );
     $flow->signal_connect( prepare => \&on_assistant_prepare );
 
-    $header = Gtk3::HeaderBar->new;
+    my $header = Gtk3::HeaderBar->new;
     $flow->set_titlebar( $header );
     $header->set_title( _( 'File shredder' ) );
     $header->set_subtitle( _( 'Overview' ) );
@@ -59,16 +56,10 @@ sub on_assistant_prepare {
     my ( $current_page, $num_pages );
 
     $current_page = $flow->get_current_page();
-    warn "current = >$current_page<\n";
     $num_pages    = $flow->get_n_pages();
-    warn "num = >$num_pages<\n";
 
     my $title = sprintf '(%d of %d)', $current_page + 1, $num_pages;
-    my $label = Gtk3::Label->new( _( $title ) );
-    $flow->set_page_title( $flow->get_current_page, $title );
-    $header->set_title( $title );
-    # $header->set_title( _('Overview' ) );
-    # $header->set_custom_title( _( $title ) );
+    $flow->set_subtitle( $title );
 }
 
 sub create_page1 {

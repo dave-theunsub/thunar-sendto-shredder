@@ -18,12 +18,21 @@ use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
+use POSIX 'locale_h';
+use Locale::gettext;
+
 my $window;
 my $popover;
+my $update_btn;
+
+my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 
 sub show_window {
     $window = Gtk3::Window->new( 'toplevel' );
-    $window->signal_connect( destroy => sub { Gtk3->main_quit } );
+    $window->signal_connect( destroy => sub {
+                    warn "gui: sig destroy\n"; Gtk3->main_quit; exit } );
+    $window->signal_connect( 'delete-event' => sub {
+                    warn "gui: sig delete\n"; Gtk3->main_quit; exit } );
     # $window->set_default_size( 300, 300 );
     $window->set_border_width( 10 );
 
@@ -37,19 +46,48 @@ sub show_window {
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
+    my $images_dir = Shredder::Config::get_images_path();
+
     # Header bar buttons
-    my $btn = Gtk3::Button->new_from_icon_name( 'gtk-dialog-question', 3 );
-    $btn->set_tooltip_text( 'Overwrite information' );
-    $btn->signal_connect( clicked => \&info );
+    my $btn  = Gtk3::Button->new;
+    my $icon = Gtk3::Image->new_from_file( "$images_dir/tss-overview.png" );
+    $btn->set_image( $icon );
+    $btn->set_tooltip_text( 'General information' );
+    $btn->signal_connect(
+        clicked => sub {
+            Shredder::Overview->show_window;
+        }
+    );
     $header->add( $btn );
-    $btn = Gtk3::Button->new_from_icon_name( 'gtk-dialog-warning', 3 );
-    $btn->set_tooltip_text( 'Important information about this program' );
-    $btn->signal_connect( clicked => \&warning );
-    $header->pack_start( $btn );
-    $btn = Gtk3::Button->new_from_icon_name( 'gtk-about', 3 );
-    $btn->set_tooltip_text( 'About this program' );
+
+    $btn  = Gtk3::Button->new;
+    $icon = Gtk3::Image->new_from_file( "$images_dir/tss-about.png" );
+    $btn->set_image( $icon );
+    $btn->set_tooltip_text( 'About' );
     $btn->signal_connect( clicked => \&about );
     $header->add( $btn );
+
+    $btn  = Gtk3::Button->new;
+    $icon = Gtk3::Image->new_from_file( "$images_dir/tss-system-log-out.png" );
+    $btn->set_image( $icon );
+    $btn->set_tooltip_text( _( 'Quit this program' ) );
+    $btn->signal_connect( clicked => sub { Gtk3->main_quit; exit } );
+    $header->add( $btn );
+
+    # This stays global so we can unhide it if
+    # an update is available
+    $update_btn = Gtk3::Button->new;
+    $icon       = Gtk3::Image->new_from_file(
+        "$images_dir/tss-software-update-available.png" );
+    $update_btn->set_image( $icon );
+    $update_btn->set_tooltip_text( 'An update is available' );
+    $header->add( $update_btn );
+    $update_btn->signal_connect(
+        clicked => sub {
+            system( 'xdg-open', $homepage ) == 0
+                or warn "Cannot open homepage: $!\n";
+        }
+    );
 
     my $grid = Gtk3::Grid->new;
     $grid->set_row_spacing( 5 );
@@ -106,7 +144,7 @@ sub show_window {
     $grid->attach( $write_switch,  1, 6, 1, 1 );
 
     my $pref = Shredder::Config::get_conf_value( 'Write' );
-    warn "pref = >$pref<\n";
+    $pref ||= 0;
     my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
     for my $type ( @writes ) {
         $write_switch->append_text( $type );
@@ -129,7 +167,6 @@ sub show_window {
 
     $popover = Gtk3::Popover->new;
     $popover->add( $label );
-    # $popover->set_position( 'right' );
 
     my $bbox = Gtk3::ButtonBox->new( 'horizontal' );
     $bbox->set_layout( 'end' );
@@ -150,12 +187,21 @@ sub show_window {
     $bbox->add( $apply_button );
 
     $window->show_all;
+
+    $update_btn->hide;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+    my ( $can_update, $version ) = Shredder::Update::check_gui();
+    if ( $can_update ) {
+        Gtk3::main_iteration while ( Gtk3::events_pending );
+        my $remote = sprintf( "Version %s is available", $version );
+        $update_btn->set_tooltip_text( $remote );
+        $update_btn->show;
+    }
     Gtk3->main;
 }
 
 sub save_changes {
     my ( $prompt, $recursive, $write ) = @_;
-    warn "p = >$prompt<, r = >$recursive<, write =>$write<\n";
 
     Shredder::Config::set_value( 'Prompt',    $prompt );
     Shredder::Config::set_value( 'Recursive', $recursive );
@@ -182,7 +228,7 @@ sub popover {
 
 sub info {
     my $dialog = Gtk3::Dialog->new(
-        'Overwrite information',
+        'Overview of options',
         undef, [ qw| destroy-with-parent no-separator | ],
     );
 
@@ -193,9 +239,11 @@ sub info {
 
 sub about {
     my $dialog = Gtk3::AboutDialog->new;
+    $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
     my $license
-        = 'thunar-sendto-shredder is free software; you can redistribute'
-        . ' it and/or modify it under the terms of either:'
+        = 'thunar-sendto-shredder is free software; you can'
+        . ' redistribute it and/or modify it under the terms'
+        . ' of either:'
         . ' a) the GNU General Public License as published by the'
         . ' Free Software Foundation; either version 1, or'
         . ' (at your option) any later version, or'
@@ -211,20 +259,20 @@ sub about {
     $dialog->set_version( Shredder::Config::get_version() );
     $dialog->set_license( $license );
     $dialog->set_website_label( 'Homepage' );
-    $dialog->set_website( 'https://launchpad.net/thunar-sendto-shredder/' );
+    $dialog->set_website( $homepage );
     $dialog->set_logo( $pixbuf );
-    $dialog->set_translator_credits(
-        'Please see the website for full listing' );
+    # $dialog->set_translator_credits(
+    #    'Please see the website for full listing' );
     $dialog->set_copyright( "\x{a9} Dave M 2016 -" );
     $dialog->set_program_name( 'thunar-sendto-shredder' );
     $dialog->set_authors( [ 'Dave M', '<dave.nerd@gmail.com>' ] );
     $dialog->set_comments(
-              'thunar-sendto-shredder provides a simple context menu'
-            . ' for securely shredding files with a graphical interface' );
+              'thunar-sendto-shredder provides a simple right-click,'
+            . ' context menu for securely shredding files from '
+            . ' within the Thunar file manager' );
 
     $dialog->run;
     $dialog->destroy;
-    $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
 
     return TRUE;
 }

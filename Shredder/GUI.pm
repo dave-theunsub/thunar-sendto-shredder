@@ -20,6 +20,14 @@ $| = 1;
 use Gtk3 '-init';
 use Glib 'TRUE', 'FALSE';
 use File::Find;
+use File::Basename 'basename';
+
+use POSIX 'locale_h';
+use Locale::gettext;
+
+my $window;
+my $promptdialog;
+my $flow;
 
 # Stuff to be overwritten
 my @objects = ();
@@ -32,28 +40,30 @@ my $pb_file_count = 0;
 # Status label; shows user what is happening
 my $label = '';
 
-my $files_seen    = 0;
 my $files_deleted = 0;
 
 sub show_window {
     @objects = @_;
-    warn "in gui - got >$_<\n" for ( @_ );
 
-    my $window = Gtk3::Window->new( 'toplevel' );
-    $window->signal_connect( 'destroy' => sub { Gtk3->main_quit } );
+    $window = Gtk3::Window->new( 'toplevel' );
+    $window->set_border_width( 5 );
+    $window->signal_connect( 'destroy' => sub {
+                    warn "gui: sig destroy\n"; Gtk3->main_quit; exit } );
+    $window->signal_connect( 'delete-event' => sub {
+                    warn "gui: sig delete\n"; Gtk3->main_quit; exit } );
 
-    my $box = Gtk3::Box->new( 'horizontal', 5 );
+    my $box = Gtk3::Box->new( 'vertical', 5 );
     $window->add( $box );
 
     my $header = Gtk3::HeaderBar->new;
     $window->set_titlebar( $header );
-    $header->set_title( 'File shredder' );
-    $header->set_subtitle( 'Securely erase files!' );
+    $header->set_title( _( 'File shredder' ) );
+    $header->set_subtitle( _( 'Securely erase files' ) );
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
     my $btn = Gtk3::Button->new_from_icon_name( 'gtk-quit', 3 );
-    $btn->set_tooltip_text( 'Quit this program' );
+    $btn->set_tooltip_text( _( 'Quit this program' ) );
     $btn->signal_connect( clicked => sub { Gtk3->main_quit } );
     $header->pack_start( $btn );
 
@@ -64,94 +74,120 @@ sub show_window {
     $box->pack_start( $pb, FALSE, FALSE, 0 );
     $window->{ pb } = $pb;
 
-    if ( Shredder::Config::get_conf_value( 'Prompt' ) ) {
-        prompt();
-    } else {
-        shred();
-    }
-
+    Gtk3::main_iteration while ( Gtk3::events_pending );
     $window->show_all;
     Gtk3->main;
+
+    if ( Shredder::Config::get_conf_value( 'Prompt' ) ) {
+        Gtk3::main_iteration while ( Gtk3::events_pending );
+
+        my $confirm = prompt();
+        if ( !$confirm ) {
+            $window->destroy;
+            Gtk3->main_quit;
+            exit;
+        }
+
+    } elsif ( scalar( @objects ) ) {
+        shred();
+    } else {
+        Gtk3->main_quit;
+        exit;
+    }
+
+    if ( !scalar( @objects ) ) {
+        exit;
+    }
 }
 
 sub shred {
     my $options = ' -D';
-    warn "in GUI::shred\n";
 
-    my $files_seen    = 0;
+    my $write
+        = translate_write( Shredder::Config::get_conf_value( 'Write' ) );
+
+        warn "in shred\n";
     my $files_deleted = 0;
+    my $paths         = '';
 
     for my $o ( @objects ) {
-        warn "in for loop: o = >$o<\n";
-        $files_seen += 1;
+        Gtk3::main_iteration while ( Gtk3::events_pending );
+
         if ( -f $o ) {
+            $pb_file_count++;
         } elsif ( -d $o ) {
             $options .= ' -R';
-            find( { wanted => \&wanted, preprocess => \&nodirs }, $o );
-        } else {
-            warn "obj = >$o<!\n";
-            next;
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+            find( \&wanted, $o );
         }
     }
 
-    $options .= ' --verbose --verbose';
-    my $paths = '';
-
     $paths .= $_ for ( @objects );
-    warn "file count = >$pb_file_count<\n";
-    warn "path = >$paths<\n";
 
     if ( !$pb_file_count ) {
-        warn "no file count - use warning banner here\n";
+        popup( 'No files selected' );
         Gtk3->main_quit;
     } else {
         $pb_step = 1 / $pb_file_count;
     }
 
     $pb->set_fraction( 0.0 );
-    $label->set_text( 'Preparing to shred...' );
-    <STDIN>;
+    $label->set_text( _( 'Preparing to remove...' ) );
 
     my $shred = Shredder::Config::get_shred_path();
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
+    $pb->{ timer } = Glib::Timeout->add( 200, \&progress_timeout, $pb );
 
-    my $pid = open( my $SHRED, '-|', "$shred $options $paths 2>&1" );
+    my $pid = open( my $SHRED, '-|', "$shred $write $options $paths 2>&1" );
     defined( $pid ) or die "Couldn't fork! $!\n";
 
     while ( <$SHRED> ) {
+        next unless ( /^srm:/ );
         chomp;
         Gtk3::main_iteration while ( Gtk3::events_pending );
         if ( /^srm: removing (.*?)$/ ) {
-            $label->set_text( "Shredding $1..." );
-        } elsif ( /^pass \d sync/ ) {
-            $label->set_text( "Finishing $1..." );
+            my $basename = basename( $1 );
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+            $label->set_text( _( "Shredding $basename..." ) );
+            $window->queue_draw;
+        } else {
+            next;
         }
+
         my $current = $pb->get_fraction;
-        $pb->set_fraction( $current + $pb_step );
+        my $total   = $current + $pb_step;
+
+        if ( $total >= 1.0 ) {
+            $pb->set_fraction( .99 );
+        } else {
+            $pb->set_fraction( $total );
+        }
+        Gtk3::main_iteration while ( Gtk3::events_pending );
     }
 
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+    $label->set_text( '' );
     $pb->set_fraction( 1.0 );
-    $pb->set_text( 'Finished' );
+    $pb->set_text( _( 'Finished' ) );
 
     cleanup();
+    popup( _( 'Finished shredding' ) );
 }
 
 sub cleanup {
     # Reset stuff
+
     $pb_step       = 0;
     $pb_file_count = 0;
     @objects       = ();
+
+    $pb->set_fraction( 1.00 );
+    destroy_progress();
 }
 
 sub wanted {
-    my $file = $_;
-    return unless ( -f $file );
-    $pb_file_count++;
-}
-
-sub nodirs {
-    grep !-d, @_;
+    -f && $pb_file_count++;
 }
 
 sub get_shred_path {
@@ -169,12 +205,9 @@ sub get_shred_path {
 }
 
 sub prompt {
-    $promptdialog = Gtk3::Dialog->new_with_buttons( 'title', undef,
+    $promptdialog = Gtk3::Dialog->new_with_buttons( undef, undef,
         'destroy-with-parent', );
-    #$dialog->add_buttons( 'gtk-cancel', 'cancel', 'gtk-ok', 'ok' );
-    $promptdialog->set_title( 'title goes here' );
-    $promptdialog->signal_connect( destroy => sub { Gtk3->main_quit } );
-    # $promptdialog->set_default_size( 200, 200 );
+    $promptdialog->signal_connect( destroy => sub { return } );
     $promptdialog->set_border_width( 10 );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
@@ -183,14 +216,15 @@ sub prompt {
     my $header = Gtk3::HeaderBar->new;
     $promptdialog->set_titlebar( $header );
     $header->set_title( 'File shredder' );
-    $header->set_subtitle( 'Settings' );
+    $header->set_subtitle( 'Confirmation dialog' );
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
     my $phrase
-        = "The files you have chosen are about to be permanently erased. "
+        = _( "The files you have chosen are about to be permanently erased." )
         . "\n\n"
-        . "Press OK to continue or cancel to stop this operation." . "\n\n";
+        . _( "Press OK to continue or cancel to stop this operation." )
+        . "\n\n";
     my $label = Gtk3::Label->new( $phrase );
 
     my $infobar = Gtk3::InfoBar->new;
@@ -201,8 +235,9 @@ sub prompt {
         response => sub {
             my ( $bar, $response ) = @_;
             if ( $response eq 'cancel' ) {
+                $window->destroy;
                 $promptdialog->destroy;
-                Gtk3->main_quit;
+                return FALSE;
             } else {
                 $promptdialog->destroy;
                 shred();
@@ -210,14 +245,67 @@ sub prompt {
         }
     );
     $infobar->get_content_area->add( $label );
+    $infobar->show_all;
     $box->add( $infobar );
 
     $promptdialog->show_all;
+    $promptdialog->run;
     $promptdialog->destroy;
 }
 
-sub warning {
+sub popup {
+    my $message = shift;
+    my $dialog  = Gtk3::Dialog->new;
+    $dialog->set_title( _( 'Status' ) );
+    $dialog->add_buttons( 'gtk-ok', 'ok' );
+    $dialog->signal_connect( destroy => sub { Gtk3->main_quit } );
+    $dialog->set_default_size( 150, 100 );
+    $dialog->set_border_width( 10 );
 
+    my $box = Gtk3::Box->new( 'vertical', 5 );
+    $dialog->get_content_area->add( $box );
+
+    my $label = Gtk3::Label->new( $message );
+    $box->pack_start( $label, FALSE, FALSE, 0 );
+
+    $dialog->show_all;
+
+    if ( $dialog->run eq 'ok' ) {
+        $dialog->destroy;
+        Gtk3->main_quit;
+    }
+    $dialog->destroy;
+}
+
+sub progress_timeout {
+    $pb->pulse;
+
+    return TRUE;
+}
+
+sub destroy_progress {
+    Glib::Source->remove( $window->{ pb }->{ timer } );
+
+    return FALSE;
+}
+
+sub translate_write {
+    my $wanted = shift;
+
+    my %swap;
+
+    $swap{ 'Simple' }  = ' --simple';
+    $swap{ 'OpenBSD' } = ' --openbsd';
+    $swap{ 'DoD' }     = ' --dod';
+    $swap{ 'DoE' }     = ' --doe';
+    $swap{ 'Gutmann' } = ' --gutmann';
+    $swap{ 'RCMP' }    = ' --rcmp';
+
+    if ( exists $swap{ $wanted } ) {
+        return $swap{ $wanted };
+    } else {
+        return ' --simple';
+    }
 }
 
 1;

@@ -16,6 +16,9 @@ package Shredder::Config;
 use File::Path 'mkpath';
 use Glib 'TRUE', 'FALSE';
 
+use POSIX 'locale_h';
+use Locale::gettext;
+
 my $name        = 'thunar-sendto-shredder';
 my $config_path = "$ENV{HOME}/.config/$name";
 
@@ -25,23 +28,27 @@ sub get_version {
 
 sub create {
     if ( !dir_exists() ) {
-        warn "Creating config directory...\n";
+        warn "Creating config directory $config_path...\n";
         mkpath( $config_path, { verbose => 1, } );
     }
 
-    if ( !config_exists() ) {
-        warn "Creating config file...\n";
+    if ( !config_exists() || !-z "$config_path/tss.conf" ) {
+        warn "Creating config file ", "$config_path/tss.conf", "...\n";
+        warn "Using defaults:\n";
 
         if ( open( my $f, '>:encoding(UTF-8)', "$config_path/tss.conf" ) ) {
             # Recursively remove contents
-            print $f "Recursive=1\n";
+            print $f "Recursive=0\n";
+            print "Recursive: FALSE\n";
 
-            # Overwrite method: simple is default
-            # simple, openbsd, dod, doe, gutmann, rcmp
-            print $f "Write=--simple\n";
+            # Overwrite method: use simple by default.
+            # List: simple, openbsd, dod, doe, gutmann, rcmp
+            print $f "Write=Simple\n";
+            print "Overwrite Method: Simple (single pass)\n";
 
             # Prompt with "Are you sure?"; by default TRUE
             print $f "Prompt=1\n";
+            print "Use prompt before shredding: TRUE \n";
 
             close( $f );
         }
@@ -53,16 +60,14 @@ sub get_conf_value {
 
     open( my $f, '<:encoding(UTF-8)', "$config_path/tss.conf" )
         or do {
-        warn "couldn't open tss.conf: $!\n";
-        die;
+        popup( 'warning',
+            "couldn't open configuration file for reading: $!\n" );
+        return;
         };
 
-    warn "opened!\n";
     while ( <$f> ) {
-        warn "reading stuff\n";
         chomp;
         if ( /^$wanted=(.*?)$/ ) {
-            warn "1 = >$1<\n";
             return $1;
         }
     }
@@ -72,11 +77,16 @@ sub get_conf_value {
 sub set_value {
     my ( $key, $value ) = @_;
 
-    # For temporary storage of values
+    # Temporary storage of values
     my %configs;
 
-    open( my $f, '<:encoding(UTF-8)', "$config_path/tss.conf" );
-    while ( <$f> ) {
+    open( my $r, '<:encoding(UTF-8)', "$config_path/tss.conf" )
+        or do {
+        popup( 'warning',
+            "couldn't open configuration file for reading set values: $!\n" );
+        return FALSE;
+        };
+    while ( <$r> ) {
         my ( $k, $v ) = split /=/, $_;
         chomp( $v );
         if ( $k eq $key ) {
@@ -85,43 +95,38 @@ sub set_value {
         }
         $configs{ $k } = $v;
     }
-    close( $f );
+    close( $r );
 
-    open( my $f, '>:encoding(UTF-8)', "$config_path/tss.conf" )
+    open( my $w, '>:encoding(UTF-8)', "$config_path/tss.conf" )
         or do {
-        warn "unable to save new settings: $!\n";
+        popup( 'warning', "couldn't open file to save new settings: $!\n" );
         return FALSE;
         };
     while ( my ( $k, $v ) = each %configs ) {
-        print $f "$k=$v\n";
+        print $w "$k=$v\n";
     }
-    close( $f );
+    close( $w );
     return TRUE;
 }
 
 sub dir_exists {
     if ( -d "$ENV{ HOME }/.config/$name" ) {
-        warn "config dir exists!\n";
         return TRUE;
     } else {
-        warn "config dir NOT exist!\n";
         return FALSE;
     }
 }
 
 sub config_exists {
     if ( -f "$ENV{ HOME }/.config/$name/tss.config" ) {
-        warn "config file exists!\n";
         return TRUE;
     } else {
-        warn "config file NOT exist!\n";
         return FALSE;
     }
 }
 
 sub get_images_path {
-    # return '/usr/share/pixmaps';
-    return '/home/dave/oop/developer/thunar-sendto-shredder-0.01/images';
+    return '/usr/share/pixmaps';
 }
 
 sub get_shred_path {
@@ -135,7 +140,19 @@ sub get_shred_path {
     }
 
     return $path if ( $path );
+    popup( 'error', "couldn't find secure remove (srm)" );
+    return FALSE;
     die "no shred found!\n";
+}
+
+sub popup {
+    my ( $type, $message ) = @_;
+
+    my $p = Gtk3::MessageDialog->new( $window, qw| destroy-with-parent |,
+        $type, 'ok', $message, );
+    $p->run;
+    $p->destroy;
+
 }
 
 1;
