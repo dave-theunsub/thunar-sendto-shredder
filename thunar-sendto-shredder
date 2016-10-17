@@ -16,7 +16,16 @@
 
 use strict;
 use warnings;
+use utf8;
+use Encode 'decode';
+use diagnostics;
 $| = 1;
+
+use POSIX 'locale_h';
+use Locale::gettext;
+textdomain( 'thunar-sendto-shredder' );
+setlocale( LC_ALL, '' );
+bind_textdomain_codeset( 'thunar-sendto-shredder', 'UTF-8' );
 
 use lib '.';
 # Config.pm: used for getting/setting system or user information
@@ -28,6 +37,12 @@ use Shredder::GUI;
 # Preferences.pm: used for system settings UI
 use Shredder::Settings;
 
+# Overview of overwrite options
+use Shredder::Overview;
+
+# For update information
+use Shredder::Update;
+
 # Incoming files - or not.
 my @objects = @ARGV;
 
@@ -38,15 +53,17 @@ if ( !Shredder::Config::dir_exists ) {
 
 # If we're not given files, bring up the Settings interface.
 if ( !scalar( @objects ) ) {
-        warn "gonna launch show_window()\n";
     Shredder::Settings::show_window();
 }
 
 # Is prompt set to yes?
 if ( Shredder::Config::get_conf_value( 'Prompt' ) ) {
     # Bring up GUI interface; we likely have stuff to shred
-    warn "gonna show GUI window\n";
     Shredder::GUI::show_window();
+}
+
+sub _ {
+    return decode( 'utf8', gettext( $_[ 0 ] ) );
 }
 
 # End.

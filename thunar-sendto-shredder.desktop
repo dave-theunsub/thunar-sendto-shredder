@@ -9,5 +9,5 @@ Exec=thunar-sendto-shredder %F
 Icon=thunar-sendto-shredder
 Type=Application
 Terminal=false
-Keywords=delete;privacy;security
+Keywords=delete;privacy;security;
 OnlyShowIn=XFCE;
