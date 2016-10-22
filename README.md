@@ -8,7 +8,7 @@ To use it, open Thunar and right-click on a file or directory.  Select "Send To"
   
 To configure Settings, either click on its graphical shortcut from within Applications or use the commandline.
   
-If it is run from the commandline like this: <p><code>thunar-sendto-shredder</code></p>, a dialog will pop up and offer a choice of settings to configure.  This includes choosing which overwrite method to use.  
+If it is run from the commandline like this:```thunar-sendto-shredder```, a dialog will pop up and offer a choice of settings to configure.  This includes choosing which overwrite method to use.  
 This is also the default view if brought up from a graphical interface (i.e., from Applications).  
   
 It can also be brought up with a file or directory as an argument.  For example, to delete a directory "Trash" in foo's home directory:  <p><code>thunar-sendto-shredder ~foo/Trash</code></p>.  
@@ -24,4 +24,4 @@ Thunar
 
 https://dave-theunsub.github.io/thunar-sendto-shredder/    
   
-&copy; Dave M, 0x6ADA59DE
+&copy; @dave-theunsub 0x6ADA59DE
