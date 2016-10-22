@@ -11,6 +11,7 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
+# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 package Shredder::Settings;
 
 use strict;
@@ -144,7 +145,7 @@ sub show_window {
     $grid->attach( $write_switch,  1, 6, 1, 1 );
 
     my $pref = Shredder::Config::get_conf_value( 'Write' );
-    $pref ||= 0;
+    $pref ||= 'Simple';
     # my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
     my @writes = (
         [   'Simple',
@@ -167,7 +168,6 @@ sub show_window {
     );
     for my $i ( 0 .. 5 ) {
         $write_switch->append_text( $writes[ $i ][ 0 ] );
-        # $write_switch->set_tooltip_text( $writes[ $i ][ 1 ] );
     }
 
     my %swap;
@@ -182,7 +182,7 @@ sub show_window {
     # Change tooltip text to user's current preference
     for my $key ( keys %swap ) {
         if ( $key eq $pref ) {
-            $write_switch->set_active( $swap{ $pref } );
+            $write_switch->set_active( $swap{ $key } );
             my $numswap = $swap{ $pref };
             $write_switch->set_tooltip_text( $writes[ $numswap ][ 1 ] );
         }
@@ -213,14 +213,18 @@ sub show_window {
             save_changes(
                 $prompt_switch->get_active,
                 $recursive_switch->get_active,
-                $writes[ $write_switch->get_active ],
+                $writes[ $write_switch->get_active ][ 0 ],
             );
         }
     );
     $bbox->add( $apply_button );
 
+    # Show first run dialog
+    Shredder::GUI::first_run( $window );
+
     $window->show_all;
 
+    # We don't need this unless there's an update
     $update_btn->hide;
     Gtk3::main_iteration while ( Gtk3::events_pending );
     my ( $can_update, $version ) = Shredder::Update::check_gui();
@@ -230,6 +234,7 @@ sub show_window {
         $update_btn->set_tooltip_text( $remote );
         $update_btn->show;
     }
+
     Gtk3->main;
 }
 

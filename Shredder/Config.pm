@@ -11,7 +11,11 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
+# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 package Shredder::Config;
+
+# use strict;
+# use warnings;
 
 use File::Path 'mkpath';
 use Glib 'TRUE', 'FALSE';
@@ -37,18 +41,25 @@ sub create {
         warn "Using defaults:\n";
 
         if ( open( my $f, '>:encoding(UTF-8)', "$config_path/tss.conf" ) ) {
-            # Recursively remove contents
-            print $f "Recursive=0\n";
+            # Recursively remove contents;
+            # start with it off
+            print $f "Recursive=FALSE\n";
             print "Recursive: FALSE\n";
 
             # Overwrite method: use simple by default.
             # List: simple, openbsd, dod, doe, gutmann, rcmp
             print $f "Write=Simple\n";
-            print "Overwrite Method: Simple (single pass)\n";
+            print "Overwrite method: Simple (single pass)\n";
 
             # Prompt with "Are you sure?"; by default TRUE
-            print $f "Prompt=1\n";
+            print $f "Prompt=TRUE\n";
             print "Use prompt before shredding: TRUE \n";
+
+            # "First run" warning dialog
+            # checkbox will turn it FALSE to not show it anymore.
+            # TRUE means watch it.
+            print $f "FirstRunWatch=TRUE\n";
+            print "Show First Run warning: TRUE \n";
 
             close( $f );
         }

@@ -11,10 +11,11 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
+# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 package Shredder::GUI;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 $| = 1;
 
 use Gtk3 '-init';
@@ -195,8 +196,8 @@ sub prompt {
 
     my $header = Gtk3::HeaderBar->new;
     $promptdialog->set_titlebar( $header );
-    $header->set_title( 'File shredder' );
-    $header->set_subtitle( 'Confirmation' );
+    $header->set_title( _( 'File shredder' ) );
+    $header->set_subtitle( _( 'Confirmation' ) );
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
@@ -278,6 +279,48 @@ sub translate_write {
     } else {
         return ' --simple';
     }
+}
+
+sub first_run {
+    my $parent = shift;
+
+    my $watchagain = Shredder::Config::get_conf_value( 'FirstRunWatch' );
+    return if ( !$watchagain );
+
+    my $dialog = Gtk3::Dialog->new_with_buttons( undef, $parent,
+        'destroy-with-parent', );
+    $dialog->set_border_width( 10 );
+
+    my $box = Gtk3::Box->new( 'vertical', 5 );
+    $dialog->get_content_area->add( $box );
+
+    my $header = Gtk3::HeaderBar->new;
+    $dialog->set_titlebar( $header );
+    $header->set_title( _( 'File shredder' ) );
+    $header->set_show_close_button( TRUE );
+    $header->set_decoration_layout( 'menu:minimize,close' );
+
+    my $label = Gtk3::Label->new(
+        _( 'It is recommended to always keep the Prompt setting enabled.' ) );
+    $box->pack_start( $label, TRUE, TRUE, 5 );
+    $label = Gtk3::Label->new(
+        _(  'More overwrites means the application will run slower and may bog down other applications in use.'
+        )
+    );
+    $box->pack_start( $label, TRUE, TRUE, 5 );
+
+    my $cbtn = Gtk3::CheckButton->new_with_label(
+        _( 'Do not show me this again' ) );
+    $cbtn->signal_connect(
+        toggled => sub {
+            Shredder::Config::set_value( 'FirstRunWatch', FALSE );
+        }
+    );
+    $box->pack_start( $cbtn, FALSE, FALSE, 10 );
+
+    $dialog->show_all;
+    $dialog->run;
+    $dialog->destroy;
 }
 
 1;

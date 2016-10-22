@@ -11,10 +11,11 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
+# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 package Shredder::Update;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
@@ -22,8 +23,6 @@ use LWP::UserAgent;
 
 use POSIX 'locale_h';
 use Locale::gettext;
-
-# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 
 sub check_gui {
     my $local_version = Shredder::Config->get_version;
@@ -52,8 +51,6 @@ sub check_gui {
     ( $local_chopped  = $local_version ) =~ s/[^0-9]//;
     ( $remote_chopped = $remote_version ) =~ s/[^0-9]//;
 
-    # warn: REMOVE ME
-    return (TRUE, 0.02);
     # Sanity check to ensure we received an answer.
     # Return TRUE for update available,
     # also the version number
