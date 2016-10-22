@@ -32,10 +32,8 @@ my $flow;
 # Stuff to be overwritten
 my @objects = ();
 
-# Our Gtk3::ProgressBar; global for now
-my $pb            = '';
-my $pb_step       = 0;
-my $pb_file_count = 0;
+# Our GtkSpinner; hidden until shredding begins
+my $spinner;
 
 # Status label; shows user what is happening
 my $label = '';
@@ -46,11 +44,20 @@ sub show_window {
     @objects = @_;
 
     $window = Gtk3::Window->new( 'toplevel' );
-    $window->set_border_width( 5 );
-    $window->signal_connect( 'destroy' => sub {
-                    warn "gui: sig destroy\n"; Gtk3->main_quit; exit } );
-    $window->signal_connect( 'delete-event' => sub {
-                    warn "gui: sig delete\n"; Gtk3->main_quit; exit } );
+    $window->set_default_size( 300, 100 );
+    $window->set_border_width( 10 );
+    $window->signal_connect(
+        'destroy' => sub {
+            Gtk3->main_quit;
+            exit;
+        }
+    );
+    $window->signal_connect(
+        'delete-event' => sub {
+            Gtk3->main_quit;
+            exit;
+        }
+    );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
     $window->add( $box );
@@ -70,13 +77,12 @@ sub show_window {
     $label = Gtk3::Label->new( '' );
     $box->pack_start( $label, FALSE, FALSE, 0 );
 
-    $pb = Gtk3::ProgressBar->new;
-    $box->pack_start( $pb, FALSE, FALSE, 0 );
-    $window->{ pb } = $pb;
+    $spinner = Gtk3::Spinner->new;
+    $spinner->hide;
+    $box->pack_start( $spinner, FALSE, FALSE, 0 );
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
     $window->show_all;
-    Gtk3->main;
 
     if ( Shredder::Config::get_conf_value( 'Prompt' ) ) {
         Gtk3::main_iteration while ( Gtk3::events_pending );
@@ -95,99 +101,73 @@ sub show_window {
         exit;
     }
 
-    if ( !scalar( @objects ) ) {
-        exit;
-    }
+    Gtk3->main;
 }
 
 sub shred {
-    my $options = ' -D';
+    my $options = ' -v -v';
 
+    # Add Overwrite preference
     my $write
         = translate_write( Shredder::Config::get_conf_value( 'Write' ) );
 
-        warn "in shred\n";
-    my $files_deleted = 0;
-    my $paths         = '';
-
-    for my $o ( @objects ) {
-        Gtk3::main_iteration while ( Gtk3::events_pending );
-
-        if ( -f $o ) {
-            $pb_file_count++;
-        } elsif ( -d $o ) {
-            $options .= ' -R';
-            Gtk3::main_iteration while ( Gtk3::events_pending );
-            find( \&wanted, $o );
-        }
+    # Add Recursive switch if selected in options
+    if ( Shredder::Config::get_conf_value( 'Recursive' ) ) {
+        $options .= ' -R';
     }
+
+    setpriority( 'PRIO_PROCESS', $$, 10 );
+
+    $files_deleted = 0;
+    my $paths = '';
 
     $paths .= $_ for ( @objects );
 
-    if ( !$pb_file_count ) {
-        popup( 'No files selected' );
-        Gtk3->main_quit;
-    } else {
-        $pb_step = 1 / $pb_file_count;
-    }
-
-    $pb->set_fraction( 0.0 );
     $label->set_text( _( 'Preparing to remove...' ) );
+    $spinner->start;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
 
     my $shred = Shredder::Config::get_shred_path();
 
-    Gtk3::main_iteration while ( Gtk3::events_pending );
-    $pb->{ timer } = Glib::Timeout->add( 200, \&progress_timeout, $pb );
-
-    my $pid = open( my $SHRED, '-|', "$shred $write $options $paths 2>&1" );
+    my $SHRED;
+    my $pid = open( $SHRED, '-|', "$shred $write $options $paths 2>&1" );
     defined( $pid ) or die "Couldn't fork! $!\n";
+    $window->queue_draw;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
 
+    Gtk3::main_iteration while ( Gtk3::events_pending );
     while ( <$SHRED> ) {
-        next unless ( /^srm:/ );
-        chomp;
         Gtk3::main_iteration while ( Gtk3::events_pending );
+        chomp;
         if ( /^srm: removing (.*?)$/ ) {
             my $basename = basename( $1 );
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $label->set_text( _( "Shredding $basename..." ) );
-            $window->queue_draw;
+            $label->set_text( _( "Shredding ..." ) );
+            $files_deleted++;
+            Gtk3::main_iteration while ( Gtk3::events_pending );
         } else {
             next;
         }
 
-        my $current = $pb->get_fraction;
-        my $total   = $current + $pb_step;
-
-        if ( $total >= 1.0 ) {
-            $pb->set_fraction( .99 );
-        } else {
-            $pb->set_fraction( $total );
-        }
         Gtk3::main_iteration while ( Gtk3::events_pending );
     }
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
     $label->set_text( '' );
-    $pb->set_fraction( 1.0 );
-    $pb->set_text( _( 'Finished' ) );
 
     cleanup();
-    popup( _( 'Finished shredding' ) );
+    my $sum_phrase = sprintf( _( '%d file(s)' ), $files_deleted );
+
+    popup( _( 'Finished shredding' . $sum_phrase ) );
 }
 
 sub cleanup {
     # Reset stuff
-
-    $pb_step       = 0;
-    $pb_file_count = 0;
     @objects       = ();
+    $files_deleted = 0;
 
-    $pb->set_fraction( 1.00 );
-    destroy_progress();
-}
-
-sub wanted {
-    -f && $pb_file_count++;
+    $spinner->stop;
+    $spinner->hide;
 }
 
 sub get_shred_path {
@@ -201,13 +181,13 @@ sub get_shred_path {
     }
 
     return $path if ( $path );
-    die "no shred found!\n";
+    die "no shredder found!\n";
 }
 
 sub prompt {
-    $promptdialog = Gtk3::Dialog->new_with_buttons( undef, undef,
+    $promptdialog = Gtk3::Dialog->new_with_buttons( undef, $window,
         'destroy-with-parent', );
-    $promptdialog->signal_connect( destroy => sub { return } );
+    $promptdialog->signal_connect( destroy => sub {return} );
     $promptdialog->set_border_width( 10 );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
@@ -216,7 +196,7 @@ sub prompt {
     my $header = Gtk3::HeaderBar->new;
     $promptdialog->set_titlebar( $header );
     $header->set_title( 'File shredder' );
-    $header->set_subtitle( 'Confirmation dialog' );
+    $header->set_subtitle( 'Confirmation' );
     $header->set_show_close_button( TRUE );
     $header->set_decoration_layout( 'menu:minimize,close' );
 
@@ -237,7 +217,8 @@ sub prompt {
             if ( $response eq 'cancel' ) {
                 $window->destroy;
                 $promptdialog->destroy;
-                return FALSE;
+                Gtk3->main_quit;
+                exit;
             } else {
                 $promptdialog->destroy;
                 shred();
@@ -261,6 +242,7 @@ sub popup {
     $dialog->signal_connect( destroy => sub { Gtk3->main_quit } );
     $dialog->set_default_size( 150, 100 );
     $dialog->set_border_width( 10 );
+    $dialog->set_border_width( 10 );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
     $dialog->get_content_area->add( $box );
@@ -271,22 +253,11 @@ sub popup {
     $dialog->show_all;
 
     if ( $dialog->run eq 'ok' ) {
-        $dialog->destroy;
+        $window->destroy;
         Gtk3->main_quit;
+        exit;
     }
     $dialog->destroy;
-}
-
-sub progress_timeout {
-    $pb->pulse;
-
-    return TRUE;
-}
-
-sub destroy_progress {
-    Glib::Source->remove( $window->{ pb }->{ timer } );
-
-    return FALSE;
 }
 
 sub translate_write {
@@ -301,6 +272,7 @@ sub translate_write {
     $swap{ 'Gutmann' } = ' --gutmann';
     $swap{ 'RCMP' }    = ' --rcmp';
 
+    # Return requested overwrite type, or a default value
     if ( exists $swap{ $wanted } ) {
         return $swap{ $wanted };
     } else {

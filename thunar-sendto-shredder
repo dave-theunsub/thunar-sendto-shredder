@@ -27,7 +27,6 @@ textdomain( 'thunar-sendto-shredder' );
 setlocale( LC_ALL, '' );
 bind_textdomain_codeset( 'thunar-sendto-shredder', 'UTF-8' );
 
-use lib '.';
 # Config.pm: used for getting/setting system or user information
 use Shredder::Config;
 
@@ -36,9 +35,6 @@ use Shredder::GUI;
 
 # Preferences.pm: used for system settings UI
 use Shredder::Settings;
-
-# Overview of overwrite options
-use Shredder::Overview;
 
 # For update information
 use Shredder::Update;
@@ -54,12 +50,9 @@ if ( !Shredder::Config::dir_exists ) {
 # If we're not given files, bring up the Settings interface.
 if ( !scalar( @objects ) ) {
     Shredder::Settings::show_window();
-}
-
-# Is prompt set to yes?
-if ( Shredder::Config::get_conf_value( 'Prompt' ) ) {
+} else {
     # Bring up GUI interface; we likely have stuff to shred
-    Shredder::GUI::show_window();
+    Shredder::GUI::show_window( @objects );
 }
 
 sub _ {

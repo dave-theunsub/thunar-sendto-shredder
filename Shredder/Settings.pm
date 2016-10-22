@@ -29,10 +29,18 @@ my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 
 sub show_window {
     $window = Gtk3::Window->new( 'toplevel' );
-    $window->signal_connect( destroy => sub {
-                    warn "gui: sig destroy\n"; Gtk3->main_quit; exit } );
-    $window->signal_connect( 'delete-event' => sub {
-                    warn "gui: sig delete\n"; Gtk3->main_quit; exit } );
+    $window->signal_connect(
+        destroy => sub {
+            Gtk3->main_quit;
+            exit;
+        }
+    );
+    $window->signal_connect(
+        'delete-event' => sub {
+            Gtk3->main_quit;
+            exit;
+        }
+    );
     # $window->set_default_size( 300, 300 );
     $window->set_border_width( 10 );
 
@@ -50,25 +58,15 @@ sub show_window {
 
     # Header bar buttons
     my $btn  = Gtk3::Button->new;
-    my $icon = Gtk3::Image->new_from_file( "$images_dir/tss-overview.png" );
-    $btn->set_image( $icon );
-    $btn->set_tooltip_text( 'General information' );
-    $btn->signal_connect(
-        clicked => sub {
-            Shredder::Overview->show_window;
-        }
-    );
-    $header->add( $btn );
-
-    $btn  = Gtk3::Button->new;
-    $icon = Gtk3::Image->new_from_file( "$images_dir/tss-about.png" );
+    my $icon = Gtk3::Image->new_from_file( "$images_dir/tss-about.png" );
     $btn->set_image( $icon );
     $btn->set_tooltip_text( 'About' );
     $btn->signal_connect( clicked => \&about );
     $header->add( $btn );
 
-    $btn  = Gtk3::Button->new;
-    $icon = Gtk3::Image->new_from_file( "$images_dir/tss-system-log-out.png" );
+    $btn = Gtk3::Button->new;
+    $icon
+        = Gtk3::Image->new_from_file( "$images_dir/tss-system-log-out.png" );
     $btn->set_image( $icon );
     $btn->set_tooltip_text( _( 'Quit this program' ) );
     $btn->signal_connect( clicked => sub { Gtk3->main_quit; exit } );
@@ -101,7 +99,8 @@ sub show_window {
 
     my $bold_label = Gtk3::Label->new( '<b>Settings</b>' );
     $bold_label->set_use_markup( TRUE );
-    my $explain_label = Gtk3::Label->new( 'Prompt me before deleting files' );
+    my $explain_label
+        = Gtk3::Label->new( _( 'Prompt me before deleting files' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     my $prompt_switch = Gtk3::Switch->new;
     $grid->attach( $bold_label,    0, 0, 1, 1 );
@@ -119,8 +118,9 @@ sub show_window {
     $grid->set_column_homogeneous( TRUE );
     $box->pack_start( $grid, FALSE, FALSE, 10 );
 
-    $explain_label = Gtk3::Label->new( 'Allow recursive shredding' );
-    $explain_label->set_tooltip_text( 'Descend into additional directories' );
+    $explain_label = Gtk3::Label->new( _( 'Recursive shredding' ) );
+    $explain_label->set_tooltip_text(
+        _( 'Descend into additional directories' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     my $recursive_switch = Gtk3::Switch->new;
     $grid->attach( $explain_label,    0, 5, 1, 1 );
@@ -137,7 +137,7 @@ sub show_window {
     $grid->set_column_homogeneous( TRUE );
     $box->pack_start( $grid, FALSE, FALSE, 10 );
 
-    $explain_label = Gtk3::Label->new( 'Overwrite preference' );
+    $explain_label = Gtk3::Label->new( _( 'Overwrite preference' ) );
     my $write_switch = Gtk3::ComboBoxText->new;
     $explain_label->set_alignment( 0.0, 0.5 );
     $grid->attach( $explain_label, 0, 6, 1, 1 );
@@ -145,9 +145,29 @@ sub show_window {
 
     my $pref = Shredder::Config::get_conf_value( 'Write' );
     $pref ||= 0;
-    my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
-    for my $type ( @writes ) {
-        $write_switch->append_text( $type );
+    # my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
+    my @writes = (
+        [   'Simple',
+            _( 'Overwrites files with a single pass of 0x00 bytes' ),
+        ],
+        [   'OpenBSD',
+            _(  'Overwrites files three times: first with 0xFF, then 0x00, then again with 0xFF'
+            ),
+        ],
+        [ 'DoD', _( 'Overwrites files seven times' ), ],
+        [   'DoE',
+            _(  'Overwrites files three times: the first two passes use a random pattern, and the third uses "DoE"'
+            ),
+        ],
+        [ 'Gutmann', _( 'Overwrites files 35 times' ), ],
+        [   'RCMP',
+            _(  'Overwrites files three times: the first pass writes 0x00, the second uses 0xFF, and the third uses "RCMP"'
+            ),
+        ],
+    );
+    for my $i ( 0 .. 5 ) {
+        $write_switch->append_text( $writes[ $i ][ 0 ] );
+        # $write_switch->set_tooltip_text( $writes[ $i ][ 1 ] );
     }
 
     my %swap;
@@ -159,11 +179,24 @@ sub show_window {
     $swap{ 'Gutmann' } = 4;
     $swap{ 'RCMP' }    = 5;
 
+    # Change tooltip text to user's current preference
     for my $key ( keys %swap ) {
         if ( $key eq $pref ) {
             $write_switch->set_active( $swap{ $pref } );
+            my $numswap = $swap{ $pref };
+            $write_switch->set_tooltip_text( $writes[ $numswap ][ 1 ] );
         }
     }
+
+    # Change tooltip text when combobox text changes
+    $write_switch->signal_connect(
+        changed => sub {
+            my $comboboxtext = shift;
+            my $activetext   = $comboboxtext->get_active_text;
+            my $numswap      = $swap{ $activetext };
+            $write_switch->set_tooltip_text( $writes[ $numswap ][ 1 ] );
+        }
+    );
 
     $popover = Gtk3::Popover->new;
     $popover->add( $label );
@@ -226,17 +259,6 @@ sub popover {
     Gtk3::main_iteration while ( Gtk3::events_pending );
 }
 
-sub info {
-    my $dialog = Gtk3::Dialog->new(
-        'Overview of options',
-        undef, [ qw| destroy-with-parent no-separator | ],
-    );
-
-    $dialog->show_all;
-    $dialog->run;
-    $dialog->destroy;
-}
-
 sub about {
     my $dialog = Gtk3::AboutDialog->new;
     $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
@@ -271,6 +293,7 @@ sub about {
             . ' context menu for securely shredding files from '
             . ' within the Thunar file manager' );
 
+    $dialog->show_all;
     $dialog->run;
     $dialog->destroy;
 

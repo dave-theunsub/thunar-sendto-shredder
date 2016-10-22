@@ -53,7 +53,7 @@ sub check_gui {
     ( $remote_chopped = $remote_version ) =~ s/[^0-9]//;
 
     # warn: REMOVE ME
-    return FALSE;
+    return (TRUE, 0.02);
     # Sanity check to ensure we received an answer.
     # Return TRUE for update available,
     # also the version number

@@ -126,7 +126,8 @@ sub config_exists {
 }
 
 sub get_images_path {
-    return '/usr/share/pixmaps';
+    # return '/usr/share/pixmaps';
+    return '/home/dave/oop/developer/thunar-sendto-shredder-0.01/images';
 }
 
 sub get_shred_path {
