@@ -1,6 +1,6 @@
-README
-------
-(Last updated 6 Oct 2016)
+#### README  
+
+(Last updated 22 Oct 2016)
   
 thunar-sendto-shredder provides a right-click, context-menu shortcut for securely erasing files from within the Thunar file manager.  
 
@@ -17,11 +17,14 @@ It is recommended to always keep the Prompt setting enabled.  There is no recycl
 
 Note that while additional overwrites may provide extra security, more overwrites means the application will run slower and may bog down other applications in use.
 
-DEPENDENCIES
-------------
+#### DEPENDENCIES  
 
-Thunar
+[Thunar](http://docs.xfce.org/xfce/thunar/start)  
+[srm](https://sourceforge.net/projects/srm/)  
 
+#### HOMEPAGE  
+ 
 https://dave-theunsub.github.io/thunar-sendto-shredder/    
   
-&copy; @dave-theunsub 0x6ADA59DE
+&copy; Dave M, 0x6ADA59DE
+@dave-theunsub
