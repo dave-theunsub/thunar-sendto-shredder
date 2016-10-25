@@ -12,7 +12,7 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
-# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
+#
 
 use strict;
 use warnings;
@@ -27,7 +27,6 @@ textdomain( 'thunar-sendto-shredder' );
 setlocale( LC_ALL, '' );
 bind_textdomain_codeset( 'thunar-sendto-shredder', 'UTF-8' );
 
-use lib '.';
 # Config.pm: used for getting/setting system or user information
 use Shredder::Config;
 
