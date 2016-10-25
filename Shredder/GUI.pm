@@ -124,10 +124,10 @@ sub shred {
     $write ||= 3;
 
     # Add Recursive switch if selected in options
-    my $recursive = FALSE;
-    if ( Shredder::Config::get_conf_value( 'Recursive' ) ) {
-        $recursive = TRUE;
-    }
+    # my $recursive = FALSE;
+    # if ( Shredder::Config::get_conf_value( 'Recursive' ) ) {
+    #    $recursive = TRUE;
+    # }
 
     $files_deleted = 0;
     my $paths = '';
@@ -344,6 +344,7 @@ sub first_run {
             Shredder::Config::set_value( 'FirstRunWatch', FALSE );
         }
     );
+    $cbtn->set_can_focus( FALSE );
     $box->pack_start( $cbtn, FALSE, FALSE, 10 );
 
     $dialog->show_all;
