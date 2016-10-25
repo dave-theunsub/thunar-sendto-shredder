@@ -14,8 +14,8 @@
 # my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 package Shredder::Settings;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
@@ -25,6 +25,7 @@ use Locale::gettext;
 my $window;
 my $popover;
 my $update_btn;
+my $spin_switch;
 
 my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
 
@@ -113,90 +114,47 @@ sub show_window {
         : FALSE
     );
 
-    $grid = Gtk3::Grid->new;
-    $grid->set_row_spacing( 5 );
-    $grid->set_column_spacing( 10 );
-    $grid->set_column_homogeneous( TRUE );
-    $box->pack_start( $grid, FALSE, FALSE, 10 );
-
     $explain_label = Gtk3::Label->new( _( 'Recursive shredding' ) );
     $explain_label->set_tooltip_text(
         _( 'Descend into additional directories' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     my $recursive_switch = Gtk3::Switch->new;
-    $grid->attach( $explain_label,    0, 5, 1, 1 );
-    $grid->attach( $recursive_switch, 1, 5, 1, 1 );
+    $grid->attach( $explain_label,    0, 3, 1, 1 );
+    $grid->attach( $recursive_switch, 1, 3, 1, 1 );
     $recursive_switch->set_active(
         Shredder::Config::get_conf_value( 'Recursive' )
         ? TRUE
         : FALSE
     );
 
-    $grid = Gtk3::Grid->new;
-    $grid->set_row_spacing( 5 );
-    $grid->set_column_spacing( 10 );
-    $grid->set_column_homogeneous( TRUE );
-    $box->pack_start( $grid, FALSE, FALSE, 10 );
+    $explain_label = Gtk3::Label->new( _( 'Overwrite with zeros' ) );
+    $explain_label->set_tooltip_text(
+            _( 'Add a final overwrite with zeros to hide shredding' ) );
+    $explain_label->set_alignment( 0.0, 0.5 );
+    $prompt_switch = Gtk3::Switch->new;
+    $grid->attach( $explain_label,    0, 4, 1, 1 );
+    $grid->attach( $prompt_switch, 1, 4, 1, 1 );
+    $prompt_switch->set_active(
+            Shredder::Config::get_conf_value( 'Zero' )
+            ? TRUE
+            : FALSE
+    );
+
+    #$grid = Gtk3::Grid->new;
+    #$grid->set_row_spacing( 5 );
+    #$grid->set_column_spacing( 10 );
+    #$grid->set_column_homogeneous( TRUE );
+    #$box->pack_start( $grid, FALSE, FALSE, 10 );
 
     $explain_label = Gtk3::Label->new( _( 'Overwrite preference' ) );
-    my $write_switch = Gtk3::ComboBoxText->new;
+    $spin_switch = Gtk3::SpinButton->new_with_range( 1, 35, 1 );
     $explain_label->set_alignment( 0.0, 0.5 );
-    $grid->attach( $explain_label, 0, 6, 1, 1 );
-    $grid->attach( $write_switch,  1, 6, 1, 1 );
+    $grid->attach( $explain_label, 0, 5, 1, 1 );
+    $grid->attach( $spin_switch,  1, 5, 1, 1 );
 
-    my $pref = Shredder::Config::get_conf_value( 'Write' );
-    $pref ||= 'Simple';
-    # my @writes = ( 'Simple', 'OpenBSD', 'DoD', 'DoE', 'Gutmann', 'RCMP', );
-    my @writes = (
-        [   'Simple',
-            _( 'Overwrites files with a single pass of 0x00 bytes' ),
-        ],
-        [   'OpenBSD',
-            _(  'Overwrites files three times: first with 0xFF, then 0x00, then again with 0xFF'
-            ),
-        ],
-        [ 'DoD', _( 'Overwrites files seven times' ), ],
-        [   'DoE',
-            _(  'Overwrites files three times: the first two passes use a random pattern, and the third uses "DoE"'
-            ),
-        ],
-        [ 'Gutmann', _( 'Overwrites files 35 times' ), ],
-        [   'RCMP',
-            _(  'Overwrites files three times: the first pass writes 0x00, the second uses 0xFF, and the third uses "RCMP"'
-            ),
-        ],
-    );
-    for my $i ( 0 .. 5 ) {
-        $write_switch->append_text( $writes[ $i ][ 0 ] );
-    }
-
-    my %swap;
-
-    $swap{ 'Simple' }  = 0;
-    $swap{ 'OpenBSD' } = 1;
-    $swap{ 'DoD' }     = 2;
-    $swap{ 'DoE' }     = 3;
-    $swap{ 'Gutmann' } = 4;
-    $swap{ 'RCMP' }    = 5;
-
-    # Change tooltip text to user's current preference
-    for my $key ( keys %swap ) {
-        if ( $key eq $pref ) {
-            $write_switch->set_active( $swap{ $key } );
-            my $numswap = $swap{ $pref };
-            $write_switch->set_tooltip_text( $writes[ $numswap ][ 1 ] );
-        }
-    }
-
-    # Change tooltip text when combobox text changes
-    $write_switch->signal_connect(
-        changed => sub {
-            my $comboboxtext = shift;
-            my $activetext   = $comboboxtext->get_active_text;
-            my $numswap      = $swap{ $activetext };
-            $write_switch->set_tooltip_text( $writes[ $numswap ][ 1 ] );
-        }
-    );
+    my $rounds = Shredder::Config::get_conf_value( 'Rounds' );
+    $rounds ||= 3;
+    $spin_switch->set_value( $rounds );
 
     $popover = Gtk3::Popover->new;
     $popover->add( $label );
@@ -210,10 +168,11 @@ sub show_window {
     $apply_button->set_tooltip_text( 'Apply changes' );
     $apply_button->signal_connect(
         clicked => sub {
+        warn "clicked! spin switch = >", $spin_switch->get_value, "<\n";
             save_changes(
                 $prompt_switch->get_active,
                 $recursive_switch->get_active,
-                $writes[ $write_switch->get_active ][ 0 ],
+                $spin_switch->get_value, 
             );
         }
     );
@@ -278,6 +237,12 @@ sub about {
     $dialog->set_wrap_license( TRUE );
     $dialog->set_position( 'mouse' );
 
+    my $header = Gtk3::HeaderBar->new;
+    $dialog->set_titlebar( $header );
+    $header->set_title( _( 'About' ) );
+    $header->set_show_close_button( TRUE );
+    $header->set_decoration_layout( 'menu:close' );
+
     my $images_dir = Shredder::Config::get_images_path();
     my $icon       = "$images_dir/thunar-sendto-shredder.png";
     my $pixbuf     = Gtk3::Gdk::Pixbuf->new_from_file( $icon );
@@ -288,8 +253,6 @@ sub about {
     $dialog->set_website_label( 'Homepage' );
     $dialog->set_website( $homepage );
     $dialog->set_logo( $pixbuf );
-    # $dialog->set_translator_credits(
-    #    'Please see the website for full listing' );
     $dialog->set_copyright( "\x{a9} Dave M 2016 -" );
     $dialog->set_program_name( 'thunar-sendto-shredder' );
     $dialog->set_authors( [ 'Dave M', '<dave.nerd@gmail.com>' ] );
