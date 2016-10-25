@@ -129,28 +129,22 @@ sub show_window {
 
     $explain_label = Gtk3::Label->new( _( 'Overwrite with zeros' ) );
     $explain_label->set_tooltip_text(
-            _( 'Add a final overwrite with zeros to hide shredding' ) );
+        _( 'Add a final overwrite with zeros to hide shredding' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     $prompt_switch = Gtk3::Switch->new;
-    $grid->attach( $explain_label,    0, 4, 1, 1 );
+    $grid->attach( $explain_label, 0, 4, 1, 1 );
     $grid->attach( $prompt_switch, 1, 4, 1, 1 );
     $prompt_switch->set_active(
-            Shredder::Config::get_conf_value( 'Zero' )
-            ? TRUE
-            : FALSE
+        Shredder::Config::get_conf_value( 'Zero' )
+        ? TRUE
+        : FALSE
     );
-
-    #$grid = Gtk3::Grid->new;
-    #$grid->set_row_spacing( 5 );
-    #$grid->set_column_spacing( 10 );
-    #$grid->set_column_homogeneous( TRUE );
-    #$box->pack_start( $grid, FALSE, FALSE, 10 );
 
     $explain_label = Gtk3::Label->new( _( 'Overwrite preference' ) );
     $spin_switch = Gtk3::SpinButton->new_with_range( 1, 35, 1 );
     $explain_label->set_alignment( 0.0, 0.5 );
     $grid->attach( $explain_label, 0, 5, 1, 1 );
-    $grid->attach( $spin_switch,  1, 5, 1, 1 );
+    $grid->attach( $spin_switch,   1, 5, 1, 1 );
 
     my $rounds = Shredder::Config::get_conf_value( 'Rounds' );
     $rounds ||= 3;
@@ -168,11 +162,11 @@ sub show_window {
     $apply_button->set_tooltip_text( 'Apply changes' );
     $apply_button->signal_connect(
         clicked => sub {
-        warn "clicked! spin switch = >", $spin_switch->get_value, "<\n";
+            warn "clicked! spin switch = >", $spin_switch->get_value, "<\n";
             save_changes(
-                $prompt_switch->get_active,
-                $recursive_switch->get_active,
-                $spin_switch->get_value, 
+                $prompt_switch->get_active,       # Prompt
+                $recursive_switch->get_active,    # Recursive
+                $spin_switch->get_value,          # Rounds
             );
         }
     );
@@ -198,11 +192,11 @@ sub show_window {
 }
 
 sub save_changes {
-    my ( $prompt, $recursive, $write ) = @_;
+    my ( $prompt, $recursive, $rounds ) = @_;
 
     Shredder::Config::set_value( 'Prompt',    $prompt );
     Shredder::Config::set_value( 'Recursive', $recursive );
-    Shredder::Config::set_value( 'Write',     $write );
+    Shredder::Config::set_value( 'Rounds',    $rounds );
 
     popover();
 }
@@ -212,7 +206,7 @@ sub popover {
     Gtk3::main_iteration while ( Gtk3::events_pending );
     my $loop = Glib::MainLoop->new;
     Glib::Timeout->add(
-        2000,
+        1500,
         sub {
             $loop->quit;
             FALSE;
