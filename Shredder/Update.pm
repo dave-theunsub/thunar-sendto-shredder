@@ -25,7 +25,7 @@ use POSIX 'locale_h';
 use Locale::gettext;
 
 sub check_gui {
-    my $local_version = Shredder::Config->get_version;
+    my $local_version = Shredder::Config::get_version();
     my $remote_version;
 
     my $url
