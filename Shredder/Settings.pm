@@ -11,7 +11,7 @@
 # Foundation; either version 1, or (at your option) any later version, or
 #
 # b) the "Artistic License".
-# my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
+#
 package Shredder::Settings;
 
 # use strict;
