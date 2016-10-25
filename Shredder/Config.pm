@@ -46,10 +46,13 @@ sub create {
             print $f "Recursive=FALSE\n";
             print "Recursive: FALSE\n";
 
-            # Overwrite method: use simple by default.
-            # List: simple, openbsd, dod, doe, gutmann, rcmp
-            print $f "Write=Simple\n";
-            print "Overwrite method: Simple (single pass)\n";
+            # Number of rounds/iterations
+            print $f "Rounds=3\n";
+            print "Overwrite rounds: default is 3\n";
+
+            # Add a final overwrite with zeros to hide shredding
+            print $f "Zero=TRUE\n";
+            print "Final overwrite with zeros: TRUE\n";
 
             # Prompt with "Are you sure?"; by default TRUE
             print $f "Prompt=TRUE\n";
@@ -143,7 +146,7 @@ sub get_images_path {
 sub get_shred_path {
     my $path = '';
 
-    if ( open( my $p, '-|', 'which srm' ) ) {
+    if ( open( my $p, '-|', 'which shred' ) ) {
         while ( <$p> ) {
             chomp;
             $path = $_ if ( -e $_ );
@@ -151,9 +154,8 @@ sub get_shred_path {
     }
 
     return $path if ( $path );
-    popup( 'error', "couldn't find secure remove (srm)" );
-    return FALSE;
-    die "no shred found!\n";
+    popup( 'error', _( 'Please install "shred" to continue' ) );
+    exit;
 }
 
 sub popup {
