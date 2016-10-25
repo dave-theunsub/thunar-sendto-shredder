@@ -20,8 +20,8 @@ $| = 1;
 
 use Gtk3 '-init';
 use Glib 'TRUE', 'FALSE';
-use File::Find;
 use File::Basename 'basename';
+use Cwd 'realpath';
 
 use POSIX 'locale_h';
 use Locale::gettext;
@@ -36,8 +36,8 @@ my @objects = ();
 # Our GtkSpinner; hidden until shredding begins
 my $spinner;
 
-# Status label; shows user what is happening
-my $label = '';
+# Label showing status of shredding
+my $shred_label;
 
 my $files_deleted = 0;
 
@@ -75,8 +75,9 @@ sub show_window {
     $btn->signal_connect( clicked => sub { Gtk3->main_quit } );
     $header->pack_start( $btn );
 
-    $label = Gtk3::Label->new( '' );
-    $box->pack_start( $label, FALSE, FALSE, 0 );
+    # $label = Gtk3::Label->new( '' );
+    $shred_label = Gtk3::Label->new( '' );
+    $box->pack_start( $shred_label, FALSE, FALSE, 0 );
 
     $spinner = Gtk3::Spinner->new;
     $spinner->hide;
@@ -106,29 +107,65 @@ sub show_window {
 }
 
 sub shred {
-    my $options = ' -v -v';
+    # Options
+    my $options = '';
+
+    # By default, use verbose so the user can see the progress
+    $options .= ' --verbose';
+
+    # By default, use remove
+    $options .= ' --remove';
+
+    # By default, add a final overwrite with zeros
+    $options .= ' --zero';
 
     # Add Overwrite preference
-    my $write
-        = translate_write( Shredder::Config::get_conf_value( 'Write' ) );
+    my $write = Shredder::Config::get_conf_value( 'Rounds' );
+    $write ||= 3;
 
     # Add Recursive switch if selected in options
+    my $recursive = FALSE;
     if ( Shredder::Config::get_conf_value( 'Recursive' ) ) {
-        $options .= ' -R';
+        $recursive = TRUE;
     }
-
-    setpriority( 'PRIO_PROCESS', $$, 10 );
 
     $files_deleted = 0;
     my $paths = '';
 
-    $paths .= $_ for ( @objects );
+    $shred_label->set_ellipsize( 'middle' );
+    $shred_label->set_max_width_chars( 35 );
 
-    $label->set_text( _( 'Preparing to remove...' ) );
+    # $paths .= $_ for ( @objects );
+    for my $o ( @objects ) {
+        my $realpath = '';
+        $realpath = realpath( $o );
+        if ( -f $realpath ) {
+            # we need the extra space or files will be
+            # jammed together like one word
+            $paths .= $realpath;
+            $paths .= ' ';
+        } elsif ( -d $o ) {
+            my @inner = glob "$o/*";
+            for my $i ( @inner ) {
+                my $newrealpath = realpath( $i );
+                $paths .= $newrealpath;
+                $paths .= ' ';
+            }
+        }
+        warn "paths = >$paths<\n";
+    }
+
+    $shred_label->set_text( _( 'Preparing to remove...' ) );
     $spinner->start;
     Gtk3::main_iteration while ( Gtk3::events_pending );
 
     my $shred = Shredder::Config::get_shred_path();
+    if ( !-e $shred ) {
+        $shred = '/usr/bin/shred';
+        if ( !-e $shred ) {
+            die "Cannot find shred program.  Exiting.\n";
+        }
+    }
 
     my $SHRED;
     my $pid = open( $SHRED, '-|', "$shred $write $options $paths 2>&1" );
@@ -140,10 +177,21 @@ sub shred {
     while ( <$SHRED> ) {
         Gtk3::main_iteration while ( Gtk3::events_pending );
         chomp;
-        if ( /^srm: removing (.*?)$/ ) {
-            my $basename = basename( $1 );
+        if ( /shred: (.*?):/ ) {
+            $basename = basename( $1 );
+            $basename ||= _( 'file' );
+        }
+        if ( /shred: .*?: pass (\d\/\d)/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $label->set_text( _( "Shredding ..." ) );
+            $shred_label->set_text( _( "Shredding $basename ($1)..." ) );
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+        } elsif ( /shred:.*?: renamed to/ ) {
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+            $shred_label->set_text( _( "Renaming $basename..." ) );
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+        } elsif ( /shred:.*?: removed$/ ) {
+            Gtk3::main_iteration while ( Gtk3::events_pending );
+            $shred_label->set_text( _( "Removing $basename..." ) );
             $files_deleted++;
             Gtk3::main_iteration while ( Gtk3::events_pending );
         } else {
@@ -154,27 +202,27 @@ sub shred {
     }
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
-    $label->set_text( '' );
 
-    cleanup();
+    $spinner->stop;
+    $spinner->hide;
+    $shred_label->set_text( '' );
+
     my $sum_phrase = sprintf( _( '%d file(s)' ), $files_deleted );
 
-    popup( _( 'Finished shredding' . $sum_phrase ) );
+    popup( _( 'Finished shredding ' . $sum_phrase ) );
+    cleanup();
 }
 
 sub cleanup {
     # Reset stuff
     @objects       = ();
     $files_deleted = 0;
-
-    $spinner->stop;
-    $spinner->hide;
 }
 
 sub get_shred_path {
     my $path = '';
 
-    if ( open( my $p, '-|', 'which srm' ) ) {
+    if ( open( my $p, '-|', 'which shred' ) ) {
         while ( <$p> ) {
             chomp;
             $path = $_ if ( -e $_ );
@@ -259,26 +307,6 @@ sub popup {
         exit;
     }
     $dialog->destroy;
-}
-
-sub translate_write {
-    my $wanted = shift;
-
-    my %swap;
-
-    $swap{ 'Simple' }  = ' --simple';
-    $swap{ 'OpenBSD' } = ' --openbsd';
-    $swap{ 'DoD' }     = ' --dod';
-    $swap{ 'DoE' }     = ' --doe';
-    $swap{ 'Gutmann' } = ' --gutmann';
-    $swap{ 'RCMP' }    = ' --rcmp';
-
-    # Return requested overwrite type, or a default value
-    if ( exists $swap{ $wanted } ) {
-        return $swap{ $wanted };
-    } else {
-        return ' --simple';
-    }
 }
 
 sub first_run {
