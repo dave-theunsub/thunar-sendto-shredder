@@ -64,6 +64,11 @@ sub create {
             print $f "FirstRunWatch=TRUE\n";
             print "Show First Run warning: TRUE \n";
 
+            # Delete empty directories
+            # "shred" does not handle directories
+            print $f "DeleteEmptyDirs=TRUE\n";
+            print "When possible, will rename and delete empty directories\n";
+
             close( $f );
         }
     }

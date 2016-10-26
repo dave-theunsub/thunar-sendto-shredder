@@ -14,13 +14,14 @@
 #
 package Shredder::GUI;
 
-# use strict;
-# use warnings;
+use strict;
+use warnings;
 $| = 1;
 
 use Gtk3 '-init';
-use Glib 'TRUE', 'FALSE';
-use File::Basename 'basename';
+use Glib 'TRUE',               'FALSE';
+use File::Basename 'basename', 'dirname';
+use File::Path 'remove_tree';
 use Cwd 'realpath';
 
 use POSIX 'locale_h';
@@ -120,8 +121,8 @@ sub shred {
     $options .= ' --zero';
 
     # Add Overwrite preference
-    my $write = Shredder::Config::get_conf_value( 'Rounds' );
-    $write ||= 3;
+    my $rounds = Shredder::Config::get_conf_value( 'Rounds' );
+    $rounds ||= 3;
 
     # Add Recursive switch if selected in options
     # my $recursive = FALSE;
@@ -142,13 +143,13 @@ sub shred {
         if ( -f $realpath ) {
             # we need the extra space or files will be
             # jammed together like one word
-            $paths .= $realpath;
+            $paths .= quotemeta( $realpath );
             $paths .= ' ';
         } elsif ( -d $o ) {
             my @inner = glob "$o/*";
             for my $i ( @inner ) {
                 my $newrealpath = realpath( $i );
-                $paths .= $newrealpath;
+                $paths .= quotemeta( $newrealpath );
                 $paths .= ' ';
             }
         }
@@ -168,8 +169,9 @@ sub shred {
     }
 
     my $SHRED;
-    my $pid = open( $SHRED, '-|', "$shred $write $options $paths 2>&1" );
+    my $pid = open( $SHRED, '-|', "$shred -n $rounds $options $paths 2>&1" );
     defined( $pid ) or die "Couldn't fork! $!\n";
+    #warn "$shred $write $options $paths\n"; exit;
     $window->queue_draw;
     Gtk3::main_iteration while ( Gtk3::events_pending );
 
@@ -177,13 +179,16 @@ sub shred {
     while ( <$SHRED> ) {
         Gtk3::main_iteration while ( Gtk3::events_pending );
         chomp;
+        my $basename;
+        my $dirname;
         if ( /shred: (.*?):/ ) {
             $basename = basename( $1 );
+            $dirname  = dirname( $1 );
             $basename ||= _( 'file' );
         }
         if ( /shred: .*?: pass (\d\/\d)/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $shred_label->set_text( _( "Shredding $basename ($1)..." ) );
+            $shred_label->set_text( _( "Shredding $basename..." ) );
             Gtk3::main_iteration while ( Gtk3::events_pending );
         } elsif ( /shred:.*?: renamed to/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
@@ -199,6 +204,14 @@ sub shred {
         }
 
         Gtk3::main_iteration while ( Gtk3::events_pending );
+
+        # Remove empty directories
+        # (if selected, of course)
+        if ( Shredder::Config::get_conf_value( 'DeleteEmptyDirs' ) ) {
+            if ( is_empty( $dirname ) ) {
+                shred_dir( $dirname );
+            }
+        }
     }
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
@@ -350,6 +363,27 @@ sub first_run {
     $dialog->show_all;
     $dialog->run;
     $dialog->destroy;
+}
+
+sub is_empty {
+    my $testdir = shift;
+    opendir( my $dh, $testdir ) or die "Not a directory";
+    return scalar( grep { $_ ne "." && $_ ne ".." } readdir( $dh ) ) == 0;
+}
+
+sub shred_dir {
+    my $shreddir = shift;
+    $shred_label->set_text( _( "Renaming empty directory $shreddir " ) );
+
+    if ( -d $shreddir ) {
+        for my $round ( 6 .. 1 ) {
+            my $newname = '0' x $round;
+            rename( $shreddir, $newname )
+                or warn "Can't rename >$shreddir< to >$newname<: $!\n";
+        }
+    }
+    $shred_label->set_text( _( "Deleting empty directory $shreddir" ) );
+    remove_tree( $shreddir, { verbose => 1, } );
 }
 
 1;

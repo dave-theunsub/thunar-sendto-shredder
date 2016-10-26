@@ -103,6 +103,8 @@ sub show_window {
     $bold_label->set_use_markup( TRUE );
     my $explain_label
         = Gtk3::Label->new( _( 'Prompt me before deleting files' ) );
+    $explain_label->set_tooltip_text(
+        _( 'Always confirm prior to running' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     my $prompt_switch = Gtk3::Switch->new;
     $grid->attach( $bold_label,    0, 0, 1, 1 );
@@ -114,33 +116,48 @@ sub show_window {
         : FALSE
     );
 
-    $explain_label = Gtk3::Label->new( _( 'Recursive shredding' ) );
-    $explain_label->set_tooltip_text(
-        _( 'Descend into additional directories' ) );
-    $explain_label->set_alignment( 0.0, 0.5 );
-    my $recursive_switch = Gtk3::Switch->new;
-    $grid->attach( $explain_label,    0, 3, 1, 1 );
-    $grid->attach( $recursive_switch, 1, 3, 1, 1 );
-    $recursive_switch->set_active(
-        Shredder::Config::get_conf_value( 'Recursive' )
-        ? TRUE
-        : FALSE
-    );
+    #$explain_label = Gtk3::Label->new( _( 'Recursive shredding' ) );
+    #$explain_label->set_tooltip_text(
+    #    _( 'Descend into additional directories' ) );
+    #$explain_label->set_alignment( 0.0, 0.5 );
+    #my $recursive_switch = Gtk3::Switch->new;
+    #$grid->attach( $explain_label,    0, 3, 1, 1 );
+    #$grid->attach( $recursive_switch, 1, 3, 1, 1 );
+    #$recursive_switch->set_active(
+    #    Shredder::Config::get_conf_value( 'Recursive' )
+    #    ? TRUE
+    #    : FALSE
+    #);
 
     $explain_label = Gtk3::Label->new( _( 'Overwrite with zeros' ) );
     $explain_label->set_tooltip_text(
         _( 'Add a final overwrite with zeros to hide shredding' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
     $prompt_switch = Gtk3::Switch->new;
-    $grid->attach( $explain_label, 0, 4, 1, 1 );
-    $grid->attach( $prompt_switch, 1, 4, 1, 1 );
+    $grid->attach( $explain_label, 0, 3, 1, 1 );
+    $grid->attach( $prompt_switch, 1, 3, 1, 1 );
     $prompt_switch->set_active(
         Shredder::Config::get_conf_value( 'Zero' )
         ? TRUE
         : FALSE
     );
 
+    $explain_label = Gtk3::Label->new( _( 'Delete empty directories' ) );
+    $explain_label->set_tooltip_text(
+        _( 'Rename and delete empty directories when possible' ) );
+    $explain_label->set_alignment( 0.0, 0.5 );
+    $prompt_switch = Gtk3::Switch->new;
+    $grid->attach( $explain_label, 0, 4, 1, 1 );
+    $grid->attach( $prompt_switch, 1, 4, 1, 1 );
+    $prompt_switch->set_active(
+        Shredder::Config::get_conf_value( 'DeleteEmptyDirs' )
+        ? TRUE
+        : FALSE
+    );
+
     $explain_label = Gtk3::Label->new( _( 'Overwrite preference' ) );
+    $explain_label->set_tooltip_text(
+        _( 'Choose the number of overwrites' ) );
     $spin_switch = Gtk3::SpinButton->new_with_range( 1, 35, 1 );
     $explain_label->set_alignment( 0.0, 0.5 );
     $grid->attach( $explain_label, 0, 5, 1, 1 );
