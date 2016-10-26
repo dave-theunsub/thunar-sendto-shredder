@@ -3,11 +3,10 @@
 Name=Shredder
 GenericName=File shredder
 Comment=Securely delete files
-Comment[en]=Scan for threats...
-TryExec=clamtk
+Comment[en]=Securely delete files
 Exec=thunar-sendto-shredder %F
 Icon=thunar-sendto-shredder
 Type=Application
 Terminal=false
-Keywords=delete;privacy;security;
+Categories=XFCE;GTK;Settings;DesktopSettings;X-XFCE-SettingsDialog;X-XFCE-PersonalSettings;
 OnlyShowIn=XFCE;
