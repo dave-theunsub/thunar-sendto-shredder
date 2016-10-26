@@ -153,10 +153,9 @@ sub shred {
                 $paths .= ' ';
             }
         }
-        warn "paths = >$paths<\n";
     }
 
-    $shred_label->set_text( _( 'Preparing to remove...' ) );
+    $shred_label->set_text( _( 'Please wait...' ) );
     $spinner->start;
     Gtk3::main_iteration while ( Gtk3::events_pending );
 
@@ -171,9 +170,9 @@ sub shred {
     my $SHRED;
     my $pid = open( $SHRED, '-|', "$shred -n $rounds $options $paths 2>&1" );
     defined( $pid ) or die "Couldn't fork! $!\n";
-    #warn "$shred $write $options $paths\n"; exit;
-    $window->queue_draw;
+
     Gtk3::main_iteration while ( Gtk3::events_pending );
+    $window->queue_draw;
 
     Gtk3::main_iteration while ( Gtk3::events_pending );
     while ( <$SHRED> ) {
@@ -188,15 +187,18 @@ sub shred {
         }
         if ( /shred: .*?: pass (\d\/\d)/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $shred_label->set_text( _( "Shredding $basename..." ) );
+            $shred_label->set_text( sprintf _( "Shredding %s..." ),
+                $basename );
             Gtk3::main_iteration while ( Gtk3::events_pending );
         } elsif ( /shred:.*?: renamed to/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $shred_label->set_text( _( "Renaming $basename..." ) );
+            $shred_label->set_text( sprintf _( "Renaming %s..." ),
+                $basename );
             Gtk3::main_iteration while ( Gtk3::events_pending );
         } elsif ( /shred:.*?: removed$/ ) {
             Gtk3::main_iteration while ( Gtk3::events_pending );
-            $shred_label->set_text( _( "Removing $basename..." ) );
+            $shred_label->set_text( sprintf _( "Removing %s..." ),
+                $basename );
             $files_deleted++;
             Gtk3::main_iteration while ( Gtk3::events_pending );
         } else {
@@ -345,7 +347,7 @@ sub first_run {
         _( 'It is recommended to always keep the Prompt setting enabled.' ) );
     $box->pack_start( $label, TRUE, TRUE, 5 );
     $label = Gtk3::Label->new(
-        _(  'More overwrites means the application will run slower and may bog down other applications in use.'
+        _(  'A larger number of overwrites may take longer to complete and may bog down other applications in use.'
         )
     );
     $box->pack_start( $label, TRUE, TRUE, 5 );
@@ -373,7 +375,8 @@ sub is_empty {
 
 sub shred_dir {
     my $shreddir = shift;
-    $shred_label->set_text( _( "Renaming empty directory $shreddir " ) );
+    $shred_label->set_text(
+        sprintf _( "Renaming empty directory %s", $shreddir ) );
 
     if ( -d $shreddir ) {
         for my $round ( 6 .. 1 ) {
