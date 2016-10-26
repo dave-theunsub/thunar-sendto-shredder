@@ -20,4 +20,5 @@ b) the "Artistic License".
 
 The icons used are from the Tango project.  These are in the public domain.
 
-Secure file deletion (srm) is used.  See http://srm.sourceforge.net/ for more.
+See this link for information on "shred":
+http://www.gnu.org/software/coreutils/shred
