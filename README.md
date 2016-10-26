@@ -11,7 +11,7 @@ To configure Settings, either click on its graphical shortcut from within Applic
 If it is run from the commandline like this:```thunar-sendto-shredder```, a dialog will pop up and offer a choice of settings to configure.  This includes choosing which overwrite method to use.  
 This is also the default view if brought up from a graphical interface (i.e., from the XFCE control panel).  
   
-It can also be brought up with a file or directory as an argument.  For example, to delete a directory "Trash" in foo's home directory:  <p>```thunar-sendto-shredder ~foo/Trash```</p>.  
+It can also be brought up with a file or directory as an argument.  For example, to delete a directory "Trash" in foo's home directory:  ```thunar-sendto-shredder ~foo/Trash```  
   
 It is recommended to always keep the Prompt setting enabled.  There is no recycle bin or trash can to bring back files that have been overwritten.
 
