@@ -40,8 +40,6 @@ sub check_gui {
         = 'https://bitbucket.org/dave_theunsub/'
         . 'thunar-sendto-shredder/raw/master/latest';
 
-    warn "## REMOVE ME ##\n";
-    return ( TRUE, '0.02' );
     # LWP::UserAgent;
     # keeping this part separate in case we
     # have to support all kinds of proxy options later
