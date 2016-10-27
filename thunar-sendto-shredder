@@ -47,7 +47,7 @@ if ( !Shredder::Config::dir_exists ) {
 }
 
 # If we're not given files, bring up the Settings interface.
-if ( !scalar( @objects ) ) {
+if ( !scalar( @objects ) || !-e $ARGV[ 0 ] ) {
     Shredder::Settings::show_window();
 } else {
     # Bring up GUI interface; we likely have stuff to shred

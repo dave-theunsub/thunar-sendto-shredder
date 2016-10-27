@@ -14,8 +14,8 @@
 #
 package Shredder::Config;
 
-# use strict;
-# use warnings;
+use strict;
+use warnings;
 
 use File::Path 'mkpath';
 use Glib 'TRUE', 'FALSE';
@@ -25,10 +25,6 @@ use Locale::gettext;
 
 my $name        = 'thunar-sendto-shredder';
 my $config_path = "$ENV{HOME}/.config/$name";
-
-sub get_version {
-    return '0.01';
-}
 
 sub create {
     if ( !dir_exists() ) {
@@ -43,20 +39,24 @@ sub create {
         if ( open( my $f, '>:encoding(UTF-8)', "$config_path/tss.conf" ) ) {
             # Recursively remove contents;
             # start with it off
-            print $f "Recursive=FALSE\n";
-            print "Recursive: FALSE\n";
+            # print $f "Recursive=FALSE\n";
+            # print "Recursive: FALSE\n";
 
-            # Number of rounds/iterations
-            print $f "Rounds=3\n";
-            print "Overwrite rounds: default is 3\n";
+            # Prompt with "Are you sure?"; by default TRUE
+            print $f "Prompt=TRUE\n";
+            print "Use prompt before shredding: TRUE \n";
 
             # Add a final overwrite with zeros to hide shredding
             print $f "Zero=TRUE\n";
             print "Final overwrite with zeros: TRUE\n";
 
-            # Prompt with "Are you sure?"; by default TRUE
-            print $f "Prompt=TRUE\n";
-            print "Use prompt before shredding: TRUE \n";
+            # Delete Empty Directories when possible
+            print $f "DeleteEmptyDirs=TRUE\n";
+            print "Delete empty directories when possible: TRUE\n";
+
+            # Number of rounds/iterations
+            print $f "Rounds=3\n";
+            print "Overwrite rounds: default is 3\n";
 
             # "First run" warning dialog
             # checkbox will turn it FALSE to not show it anymore.
@@ -71,6 +71,22 @@ sub create {
 
             close( $f );
         }
+    }
+}
+
+sub config_exists {
+    if ( -f "$ENV{ HOME }/.config/$name/tss.config" ) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+sub dir_exists {
+    if ( -d "$ENV{ HOME }/.config/$name" ) {
+        return TRUE;
+    } else {
+        return FALSE;
     }
 }
 
@@ -93,8 +109,44 @@ sub get_conf_value {
     close( $f );
 }
 
+sub get_images_path {
+    return '/usr/share/pixmaps';
+}
+
+sub get_shred_path {
+    my $path = '';
+
+    if ( open( my $p, '-|', 'which shred' ) ) {
+        while ( <$p> ) {
+            chomp;
+            $path = $_ if ( -e $_ );
+        }
+    }
+
+    return $path if ( $path );
+    popup( 'error', _( 'Please install "shred" to continue' ) );
+    exit;
+}
+
+sub get_version {
+    return '0.01';
+}
+
+sub popup {
+    my ( $type, $message ) = @_;
+
+    my $p = Gtk3::MessageDialog->new( $window, qw| destroy-with-parent |,
+        $type, 'ok', $message, );
+    $p->run;
+    $p->destroy;
+
+}
+
 sub set_value {
     my ( $key, $value ) = @_;
+    warn "config set_value: got key = >$key<, val = >$value<\n";
+    return FALSE unless ( still_sane( $key ) );
+    warn "must be sane, continuing\n";
 
     # Temporary storage of values
     my %configs;
@@ -128,49 +180,13 @@ sub set_value {
     return TRUE;
 }
 
-sub dir_exists {
-    if ( -d "$ENV{ HOME }/.config/$name" ) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-sub config_exists {
-    if ( -f "$ENV{ HOME }/.config/$name/tss.config" ) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-sub get_images_path {
-    return '/usr/share/pixmaps';
-}
-
-sub get_shred_path {
-    my $path = '';
-
-    if ( open( my $p, '-|', 'which shred' ) ) {
-        while ( <$p> ) {
-            chomp;
-            $path = $_ if ( -e $_ );
-        }
-    }
-
-    return $path if ( $path );
-    popup( 'error', _( 'Please install "shred" to continue' ) );
-    exit;
-}
-
-sub popup {
-    my ( $type, $message ) = @_;
-
-    my $p = Gtk3::MessageDialog->new( $window, qw| destroy-with-parent |,
-        $type, 'ok', $message, );
-    $p->run;
-    $p->destroy;
-
+sub still_sane {
+    my $medication = shift;
+    my @quite_sane
+        = ( 'Prompt', 'Zero', 'DeleteEmptyDirs', 'Rounds', 'FirstRunWatch', );
+    return 1 if ( grep ( /$medication/, @quite_sane ) );
+    warn "not sane, returning >$medication< FALSE\n";
+    return FALSE;
 }
 
 1;

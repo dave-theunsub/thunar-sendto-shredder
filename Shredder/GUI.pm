@@ -42,6 +42,157 @@ my $shred_label;
 
 my $files_deleted = 0;
 
+sub cleanup {
+    # Reset stuff
+    @objects       = ();
+    $files_deleted = 0;
+}
+
+sub first_run {
+    my $parent = shift;
+
+    my $watchagain = Shredder::Config::get_conf_value( 'FirstRunWatch' );
+    return if ( !$watchagain );
+
+    my $dialog = Gtk3::Dialog->new_with_buttons( undef, $parent,
+        'destroy-with-parent', );
+    $dialog->set_border_width( 10 );
+
+    my $box = Gtk3::Box->new( 'vertical', 5 );
+    $dialog->get_content_area->add( $box );
+
+    my $header = Gtk3::HeaderBar->new;
+    $dialog->set_titlebar( $header );
+    $header->set_title( _( 'File shredder' ) );
+    $header->set_show_close_button( TRUE );
+    $header->set_decoration_layout( 'menu:minimize,close' );
+
+    my $label = Gtk3::Label->new(
+        _( 'It is recommended to always keep the Prompt setting enabled.' ) );
+    $box->pack_start( $label, TRUE, TRUE, 5 );
+    $label = Gtk3::Label->new(
+        _(        'A larger number of overwrites may take longer to '
+                . 'complete and may bog down other applications in use.'
+        )
+    );
+    $box->pack_start( $label, TRUE, TRUE, 5 );
+
+    my $cbtn = Gtk3::CheckButton->new_with_label(
+        _( 'Do not show me this again' ) );
+    $cbtn->signal_connect(
+        toggled => sub {
+            Shredder::Config::set_value( 'FirstRunWatch', FALSE );
+        }
+    );
+    $cbtn->set_can_focus( FALSE );
+    $box->pack_start( $cbtn, FALSE, FALSE, 10 );
+
+    $dialog->show_all;
+    $dialog->run;
+    $dialog->destroy;
+}
+
+sub get_shred_path {
+    my $path = '';
+
+    if ( open( my $p, '-|', 'which shred' ) ) {
+        while ( <$p> ) {
+            chomp;
+            $path = $_ if ( -e $_ );
+        }
+    }
+
+    return $path if ( $path );
+    die "no shredder found!\n";
+}
+
+sub is_empty {
+    my $testdir = shift;
+    return unless ( -d $testdir );
+    opendir( my $dh, $testdir )
+        or do {
+        warn "can't open $testdir; returning\n";
+        return FALSE;
+        };
+    return scalar( grep { $_ ne "." && $_ ne ".." } readdir( $dh ) ) == 0;
+}
+
+sub popup {
+    my $message = shift;
+    my $dialog  = Gtk3::Dialog->new;
+    $dialog->set_title( _( 'Status' ) );
+    $dialog->add_buttons( 'gtk-ok', 'ok' );
+    $dialog->signal_connect( destroy => sub { Gtk3->main_quit } );
+    $dialog->set_default_size( 150, 100 );
+    $dialog->set_border_width( 10 );
+    $dialog->set_border_width( 10 );
+
+    my $box = Gtk3::Box->new( 'vertical', 5 );
+    $dialog->get_content_area->add( $box );
+
+    my $label = Gtk3::Label->new( $message );
+    $box->pack_start( $label, FALSE, FALSE, 0 );
+
+    $dialog->show_all;
+
+    if ( $dialog->run eq 'ok' ) {
+        $window->destroy;
+        Gtk3->main_quit;
+        exit;
+    }
+    $dialog->destroy;
+}
+
+sub prompt {
+    $promptdialog = Gtk3::Dialog->new_with_buttons( undef, $window,
+        'destroy-with-parent', );
+    $promptdialog->signal_connect( destroy => sub {return} );
+    $promptdialog->set_border_width( 10 );
+
+    my $box = Gtk3::Box->new( 'vertical', 5 );
+    $promptdialog->get_content_area->add( $box );
+
+    my $header = Gtk3::HeaderBar->new;
+    $promptdialog->set_titlebar( $header );
+    $header->set_title( _( 'File shredder' ) );
+    $header->set_subtitle( _( 'Confirmation' ) );
+    $header->set_show_close_button( TRUE );
+    $header->set_decoration_layout( 'menu:minimize,close' );
+
+    my $phrase
+        = _( "The files you have chosen are about to be permanently erased." )
+        . "\n\n"
+        . _( "Press OK to continue or cancel to stop this operation." )
+        . "\n\n";
+    my $label = Gtk3::Label->new( $phrase );
+
+    my $infobar = Gtk3::InfoBar->new;
+    $infobar->set_message_type( 'info' );
+    $infobar->add_button( 'gtk-cancel', 'cancel' );
+    $infobar->add_button( 'gtk-ok',     'ok' );
+    $infobar->signal_connect(
+        response => sub {
+            my ( $bar, $response ) = @_;
+            if ( $response eq 'cancel' ) {
+                $window->destroy;
+                $promptdialog->destroy;
+                Gtk3->main_quit;
+                exit;
+            } else {
+                $promptdialog->destroy;
+                shred();
+            }
+        }
+    );
+    $infobar->get_content_area->add( $label );
+    $infobar->show_all;
+    $box->add( $infobar );
+
+    $promptdialog->show_all;
+    $promptdialog->run;
+    $promptdialog->destroy;
+}
+
 sub show_window {
     @objects = @_;
 
@@ -211,7 +362,9 @@ sub shred {
         # (if selected, of course)
         if ( Shredder::Config::get_conf_value( 'DeleteEmptyDirs' ) ) {
             if ( is_empty( $dirname ) ) {
-                shred_dir( $dirname );
+                if ( -e $dirname ) {
+                    shred_dir( $dirname );
+                }
             }
         }
     }
@@ -228,155 +381,10 @@ sub shred {
     cleanup();
 }
 
-sub cleanup {
-    # Reset stuff
-    @objects       = ();
-    $files_deleted = 0;
-}
-
-sub get_shred_path {
-    my $path = '';
-
-    if ( open( my $p, '-|', 'which shred' ) ) {
-        while ( <$p> ) {
-            chomp;
-            $path = $_ if ( -e $_ );
-        }
-    }
-
-    return $path if ( $path );
-    die "no shredder found!\n";
-}
-
-sub prompt {
-    $promptdialog = Gtk3::Dialog->new_with_buttons( undef, $window,
-        'destroy-with-parent', );
-    $promptdialog->signal_connect( destroy => sub {return} );
-    $promptdialog->set_border_width( 10 );
-
-    my $box = Gtk3::Box->new( 'vertical', 5 );
-    $promptdialog->get_content_area->add( $box );
-
-    my $header = Gtk3::HeaderBar->new;
-    $promptdialog->set_titlebar( $header );
-    $header->set_title( _( 'File shredder' ) );
-    $header->set_subtitle( _( 'Confirmation' ) );
-    $header->set_show_close_button( TRUE );
-    $header->set_decoration_layout( 'menu:minimize,close' );
-
-    my $phrase
-        = _( "The files you have chosen are about to be permanently erased." )
-        . "\n\n"
-        . _( "Press OK to continue or cancel to stop this operation." )
-        . "\n\n";
-    my $label = Gtk3::Label->new( $phrase );
-
-    my $infobar = Gtk3::InfoBar->new;
-    $infobar->set_message_type( 'info' );
-    $infobar->add_button( 'gtk-cancel', 'cancel' );
-    $infobar->add_button( 'gtk-ok',     'ok' );
-    $infobar->signal_connect(
-        response => sub {
-            my ( $bar, $response ) = @_;
-            if ( $response eq 'cancel' ) {
-                $window->destroy;
-                $promptdialog->destroy;
-                Gtk3->main_quit;
-                exit;
-            } else {
-                $promptdialog->destroy;
-                shred();
-            }
-        }
-    );
-    $infobar->get_content_area->add( $label );
-    $infobar->show_all;
-    $box->add( $infobar );
-
-    $promptdialog->show_all;
-    $promptdialog->run;
-    $promptdialog->destroy;
-}
-
-sub popup {
-    my $message = shift;
-    my $dialog  = Gtk3::Dialog->new;
-    $dialog->set_title( _( 'Status' ) );
-    $dialog->add_buttons( 'gtk-ok', 'ok' );
-    $dialog->signal_connect( destroy => sub { Gtk3->main_quit } );
-    $dialog->set_default_size( 150, 100 );
-    $dialog->set_border_width( 10 );
-    $dialog->set_border_width( 10 );
-
-    my $box = Gtk3::Box->new( 'vertical', 5 );
-    $dialog->get_content_area->add( $box );
-
-    my $label = Gtk3::Label->new( $message );
-    $box->pack_start( $label, FALSE, FALSE, 0 );
-
-    $dialog->show_all;
-
-    if ( $dialog->run eq 'ok' ) {
-        $window->destroy;
-        Gtk3->main_quit;
-        exit;
-    }
-    $dialog->destroy;
-}
-
-sub first_run {
-    my $parent = shift;
-
-    my $watchagain = Shredder::Config::get_conf_value( 'FirstRunWatch' );
-    return if ( !$watchagain );
-
-    my $dialog = Gtk3::Dialog->new_with_buttons( undef, $parent,
-        'destroy-with-parent', );
-    $dialog->set_border_width( 10 );
-
-    my $box = Gtk3::Box->new( 'vertical', 5 );
-    $dialog->get_content_area->add( $box );
-
-    my $header = Gtk3::HeaderBar->new;
-    $dialog->set_titlebar( $header );
-    $header->set_title( _( 'File shredder' ) );
-    $header->set_show_close_button( TRUE );
-    $header->set_decoration_layout( 'menu:minimize,close' );
-
-    my $label = Gtk3::Label->new(
-        _( 'It is recommended to always keep the Prompt setting enabled.' ) );
-    $box->pack_start( $label, TRUE, TRUE, 5 );
-    $label = Gtk3::Label->new(
-        _(  'A larger number of overwrites may take longer to complete and may bog down other applications in use.'
-        )
-    );
-    $box->pack_start( $label, TRUE, TRUE, 5 );
-
-    my $cbtn = Gtk3::CheckButton->new_with_label(
-        _( 'Do not show me this again' ) );
-    $cbtn->signal_connect(
-        toggled => sub {
-            Shredder::Config::set_value( 'FirstRunWatch', FALSE );
-        }
-    );
-    $cbtn->set_can_focus( FALSE );
-    $box->pack_start( $cbtn, FALSE, FALSE, 10 );
-
-    $dialog->show_all;
-    $dialog->run;
-    $dialog->destroy;
-}
-
-sub is_empty {
-    my $testdir = shift;
-    opendir( my $dh, $testdir ) or die "Not a directory";
-    return scalar( grep { $_ ne "." && $_ ne ".." } readdir( $dh ) ) == 0;
-}
-
 sub shred_dir {
     my $shreddir = shift;
-    $shred_label->set_text(
-        sprintf _( "Renaming empty directory %s", $shreddir ) );
+    $shred_label->set_text( sprintf _( "Renaming empty directory %s" ),
+        $shreddir );
 
     if ( -d $shreddir ) {
         for my $round ( 6 .. 1 ) {
@@ -385,7 +393,8 @@ sub shred_dir {
                 or warn "Can't rename >$shreddir< to >$newname<: $!\n";
         }
     }
-    $shred_label->set_text( _( "Deleting empty directory $shreddir" ) );
+    $shred_label->set_text( sprintf _( "Removing empty directory %s" ),
+        $shreddir );
     remove_tree( $shreddir, { verbose => 1, } );
 }
 

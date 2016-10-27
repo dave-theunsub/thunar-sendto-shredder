@@ -14,8 +14,8 @@
 #
 package Shredder::Settings;
 
-# use strict;
-# use warnings;
+use strict;
+use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
@@ -25,9 +25,81 @@ use Locale::gettext;
 my $window;
 my $popover;
 my $update_btn;
-my $spin_switch;
 
 my $homepage = 'https://dave-theunsub.github.io/thunar-sendto-shredder/';
+
+sub about {
+    my $dialog = Gtk3::AboutDialog->new;
+    $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
+    my $license
+        = 'thunar-sendto-shredder is free software; you can'
+        . ' redistribute it and/or modify it under the terms'
+        . ' of either:'
+        . ' a) the GNU General Public License as published by the'
+        . ' Free Software Foundation; either version 1, or'
+        . ' (at your option) any later version, or'
+        . ' b) the "Artistic License".';
+    $dialog->set_wrap_license( TRUE );
+    $dialog->set_position( 'mouse' );
+
+    my $header = Gtk3::HeaderBar->new;
+    $dialog->set_titlebar( $header );
+    $header->set_title( _( 'About' ) );
+    $header->set_show_close_button( TRUE );
+    $header->set_decoration_layout( 'menu:close' );
+
+    my $images_dir = Shredder::Config::get_images_path();
+    my $icon       = "$images_dir/thunar-sendto-shredder.png";
+    my $pixbuf     = Gtk3::Gdk::Pixbuf->new_from_file( $icon );
+
+    $dialog->set_logo( $pixbuf );
+    $dialog->set_version( Shredder::Config::get_version() );
+    $dialog->set_license( $license );
+    $dialog->set_website_label( 'Homepage' );
+    $dialog->set_website( $homepage );
+    $dialog->set_logo( $pixbuf );
+    $dialog->set_copyright( "\x{a9} Dave M 2016 -" );
+    $dialog->set_program_name( 'thunar-sendto-shredder' );
+    $dialog->set_authors( [ 'Dave M', '<dave.nerd@gmail.com>' ] );
+    $dialog->set_comments(
+              'thunar-sendto-shredder provides a simple right-click,'
+            . ' context menu for securely shredding files from '
+            . ' within the Thunar file manager' );
+
+    $dialog->show_all;
+    $dialog->run;
+    $dialog->destroy;
+
+    return TRUE;
+}
+
+sub popover {
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+    my $loop = Glib::MainLoop->new;
+    Glib::Timeout->add(
+        1500,
+        sub {
+            $loop->quit;
+            FALSE;
+        }
+    );
+    $loop->run;
+    $popover->hide;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+}
+
+sub save_changes {
+    my ( $prompt, $zero, $empty, $rounds ) = @_;
+
+    Shredder::Config::set_value( 'Prompt',          $prompt );
+    Shredder::Config::set_value( 'Zero',            $zero );
+    Shredder::Config::set_value( 'DeleteEmptyDirs', $empty );
+    Shredder::Config::set_value( 'Rounds',          $rounds );
+
+    $popover->show;
+    Gtk3::main_iteration while ( Gtk3::events_pending );
+    popover();
+}
 
 sub show_window {
     $window = Gtk3::Window->new( 'toplevel' );
@@ -43,7 +115,6 @@ sub show_window {
             exit;
         }
     );
-    # $window->set_default_size( 300, 300 );
     $window->set_border_width( 10 );
 
     my $box = Gtk3::Box->new( 'vertical', 5 );
@@ -99,6 +170,10 @@ sub show_window {
     my $label = Gtk3::Label->new( 'Saved' );
     $label->show;
 
+    # These are the options in the Settings:
+    # they don't have to be global
+    my ( $prompt_switch, $zero_switch, $empty_switch, $spin_switch );
+
     my $bold_label = Gtk3::Label->new( '<b>Settings</b>' );
     $bold_label->set_use_markup( TRUE );
     my $explain_label
@@ -106,7 +181,7 @@ sub show_window {
     $explain_label->set_tooltip_text(
         _( 'Always confirm prior to running' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
-    my $prompt_switch = Gtk3::Switch->new;
+    $prompt_switch = Gtk3::Switch->new;
     $grid->attach( $bold_label,    0, 0, 1, 1 );
     $grid->attach( $explain_label, 0, 2, 1, 1 );
     $grid->attach( $prompt_switch, 1, 2, 1, 1 );
@@ -116,6 +191,8 @@ sub show_window {
         : FALSE
     );
 
+    # Recursive stuff - shred doesn't do directories and stuff yet...
+    # May add this later.
     #$explain_label = Gtk3::Label->new( _( 'Recursive shredding' ) );
     #$explain_label->set_tooltip_text(
     #    _( 'Descend into additional directories' ) );
@@ -133,10 +210,10 @@ sub show_window {
     $explain_label->set_tooltip_text(
         _( 'Add a final overwrite with zeros to hide shredding' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
-    $prompt_switch = Gtk3::Switch->new;
+    $zero_switch = Gtk3::Switch->new;
     $grid->attach( $explain_label, 0, 3, 1, 1 );
-    $grid->attach( $prompt_switch, 1, 3, 1, 1 );
-    $prompt_switch->set_active(
+    $grid->attach( $zero_switch,   1, 3, 1, 1 );
+    $zero_switch->set_active(
         Shredder::Config::get_conf_value( 'Zero' )
         ? TRUE
         : FALSE
@@ -146,10 +223,10 @@ sub show_window {
     $explain_label->set_tooltip_text(
         _( 'Rename and delete empty directories when possible' ) );
     $explain_label->set_alignment( 0.0, 0.5 );
-    $prompt_switch = Gtk3::Switch->new;
+    $empty_switch = Gtk3::Switch->new;
     $grid->attach( $explain_label, 0, 4, 1, 1 );
-    $grid->attach( $prompt_switch, 1, 4, 1, 1 );
-    $prompt_switch->set_active(
+    $grid->attach( $empty_switch,  1, 4, 1, 1 );
+    $empty_switch->set_active(
         Shredder::Config::get_conf_value( 'DeleteEmptyDirs' )
         ? TRUE
         : FALSE
@@ -162,6 +239,11 @@ sub show_window {
     $explain_label->set_alignment( 0.0, 0.5 );
     $grid->attach( $explain_label, 0, 5, 1, 1 );
     $grid->attach( $spin_switch,   1, 5, 1, 1 );
+    $spin_switch->set_value(
+        Shredder::Config::get_conf_value( 'Rounds' )
+        ? TRUE
+        : FALSE
+    );
 
     my $rounds = Shredder::Config::get_conf_value( 'Rounds' );
     $rounds ||= 3;
@@ -181,9 +263,10 @@ sub show_window {
         clicked => sub {
             warn "clicked! spin switch = >", $spin_switch->get_value, "<\n";
             save_changes(
-                $prompt_switch->get_active,       # Prompt
-                $recursive_switch->get_active,    # Recursive
-                $spin_switch->get_value,          # Rounds
+                $prompt_switch->get_active,    # Prompt
+                $zero_switch->get_active,      # Overwrite with Zeros
+                $empty_switch->get_active,     # Delete empty directories
+                $spin_switch->get_value,       # Rounds
             );
         }
     );
@@ -206,77 +289,6 @@ sub show_window {
     }
 
     Gtk3->main;
-}
-
-sub save_changes {
-    my ( $prompt, $recursive, $rounds ) = @_;
-
-    Shredder::Config::set_value( 'Prompt',    $prompt );
-    Shredder::Config::set_value( 'Recursive', $recursive );
-    Shredder::Config::set_value( 'Rounds',    $rounds );
-
-    popover();
-}
-
-sub popover {
-    $popover->show_all;
-    Gtk3::main_iteration while ( Gtk3::events_pending );
-    my $loop = Glib::MainLoop->new;
-    Glib::Timeout->add(
-        1500,
-        sub {
-            $loop->quit;
-            FALSE;
-        }
-    );
-    $loop->run;
-    $popover->hide;
-    Gtk3::main_iteration while ( Gtk3::events_pending );
-}
-
-sub about {
-    my $dialog = Gtk3::AboutDialog->new;
-    $dialog->signal_connect( 'delete-event' => sub { $dialog->destroy } );
-    my $license
-        = 'thunar-sendto-shredder is free software; you can'
-        . ' redistribute it and/or modify it under the terms'
-        . ' of either:'
-        . ' a) the GNU General Public License as published by the'
-        . ' Free Software Foundation; either version 1, or'
-        . ' (at your option) any later version, or'
-        . ' b) the "Artistic License".';
-    $dialog->set_wrap_license( TRUE );
-    $dialog->set_position( 'mouse' );
-
-    my $header = Gtk3::HeaderBar->new;
-    $dialog->set_titlebar( $header );
-    $header->set_title( _( 'About' ) );
-    $header->set_show_close_button( TRUE );
-    $header->set_decoration_layout( 'menu:close' );
-
-    my $images_dir = Shredder::Config::get_images_path();
-    my $icon       = "$images_dir/thunar-sendto-shredder.png";
-    my $pixbuf     = Gtk3::Gdk::Pixbuf->new_from_file( $icon );
-
-    $dialog->set_logo( $pixbuf );
-    $dialog->set_version( Shredder::Config::get_version() );
-    $dialog->set_license( $license );
-    $dialog->set_website_label( 'Homepage' );
-    $dialog->set_website( $homepage );
-    $dialog->set_logo( $pixbuf );
-    $dialog->set_copyright( "\x{a9} Dave M 2016 -" );
-    $dialog->set_program_name( 'thunar-sendto-shredder' );
-    $dialog->set_authors( [ 'Dave M', '<dave.nerd@gmail.com>' ] );
-    $dialog->set_comments(
-              'thunar-sendto-shredder provides a simple right-click,'
-            . ' context menu for securely shredding files from '
-            . ' within the Thunar file manager' );
-
-    $dialog->show_all;
-    $dialog->run;
-    $dialog->destroy;
-
-    return TRUE;
 }
 
 1;

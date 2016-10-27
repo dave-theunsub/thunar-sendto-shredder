@@ -14,8 +14,8 @@
 #
 package Shredder::Update;
 
-# use strict;
-# use warnings;
+use strict;
+use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
@@ -24,13 +24,24 @@ use LWP::UserAgent;
 use POSIX 'locale_h';
 use Locale::gettext;
 
+sub build_ua {
+    my $agent = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
+    $agent->timeout( 15 );
+    $agent->protocols_allowed( [ 'http', 'https' ] );
+
+    return $agent;
+}
+
 sub check_gui {
     my $local_version = Shredder::Config::get_version();
     my $remote_version;
 
     my $url
-        = 'https://bitbucket.org/dave_theunsub/thunar-sendto-shredder/raw/master/latest';
+        = 'https://bitbucket.org/dave_theunsub/'
+        . 'thunar-sendto-shredder/raw/master/latest';
 
+    warn "## REMOVE ME ##\n";
+    return ( TRUE, '0.02' );
     # LWP::UserAgent;
     # keeping this part separate in case we
     # have to support all kinds of proxy options later
@@ -60,14 +71,6 @@ sub check_gui {
         }
     }
     return FALSE;
-}
-
-sub build_ua {
-    my $agent = LWP::UserAgent->new( ssl_opts => { verify_hostname => 1 } );
-    $agent->timeout( 15 );
-    $agent->protocols_allowed( [ 'http', 'https' ] );
-
-    return $agent;
 }
 
 1;
