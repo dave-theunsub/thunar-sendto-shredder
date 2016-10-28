@@ -14,8 +14,8 @@
 #
 package Shredder::Settings;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 
@@ -261,7 +261,6 @@ sub show_window {
     $apply_button->set_tooltip_text( 'Apply changes' );
     $apply_button->signal_connect(
         clicked => sub {
-            warn "clicked! spin switch = >", $spin_switch->get_value, "<\n";
             save_changes(
                 $prompt_switch->get_active,    # Prompt
                 $zero_switch->get_active,      # Overwrite with Zeros

@@ -14,8 +14,8 @@
 #
 package Shredder::Update;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 use Glib 'TRUE', 'FALSE';
 $| = 1;
 

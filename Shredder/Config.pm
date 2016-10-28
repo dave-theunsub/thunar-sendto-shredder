@@ -14,8 +14,8 @@
 #
 package Shredder::Config;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 
 use File::Path 'mkpath';
 use Glib 'TRUE', 'FALSE';
@@ -62,7 +62,7 @@ sub create {
             # checkbox will turn it FALSE to not show it anymore.
             # TRUE means watch it.
             print $f "FirstRunWatch=TRUE\n";
-            print "Show First Run warning: TRUE \n";
+            print "Show first run warning: TRUE \n";
 
             # Delete empty directories
             # "shred" does not handle directories
@@ -135,18 +135,15 @@ sub get_version {
 sub popup {
     my ( $type, $message ) = @_;
 
-    my $p = Gtk3::MessageDialog->new( $window, qw| destroy-with-parent |,
+    my $p = Gtk3::MessageDialog->new( undef, qw| destroy-with-parent |,
         $type, 'ok', $message, );
     $p->run;
     $p->destroy;
-
 }
 
 sub set_value {
     my ( $key, $value ) = @_;
-    warn "config set_value: got key = >$key<, val = >$value<\n";
     return FALSE unless ( still_sane( $key ) );
-    warn "must be sane, continuing\n";
 
     # Temporary storage of values
     my %configs;
@@ -185,7 +182,6 @@ sub still_sane {
     my @quite_sane
         = ( 'Prompt', 'Zero', 'DeleteEmptyDirs', 'Rounds', 'FirstRunWatch', );
     return 1 if ( grep ( /$medication/, @quite_sane ) );
-    warn "not sane, returning >$medication< FALSE\n";
     return FALSE;
 }
 

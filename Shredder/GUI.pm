@@ -14,8 +14,8 @@
 #
 package Shredder::GUI;
 
-use strict;
-use warnings;
+# use strict;
+# use warnings;
 $| = 1;
 
 use Gtk3 '-init';
